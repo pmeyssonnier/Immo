@@ -119,13 +119,17 @@ de ventes le chiffre varie du simple au décuple selon l'échantillon. Il faut
 plusieurs milliers de ventes pour qu'il se stabilise — ce qu'aucune commune
 n'atteint, mais que les départements atteignent largement.
 
-**Et dans certains départements, la case n'apparaît pas du tout.** Dans les
-Alpes-Maritimes et le Var, la mesure donne une valeur *négative* (−5 et
-−16 €/m², de façon stable). Ce n'est pas une erreur : une fois la valeur du bâti
-retirée, les grands terrains y sont dans l'arrière-pays, moins cher, tandis que
-la prime va au littoral sur de petites parcelles. La surface de terrain n'y
-explique donc pas le prix, et l'application préfère ne rien proposer plutôt
-qu'avancer un chiffre inventé.
+**Et dans certains départements, la case n'apparaît pas du tout.** Trois cas
+mesurés : Alpes-Maritimes (−5 €/m²), Var (−16 €/m²) et Haute-Garonne
+(0,85 €/m²). Les deux premiers sont *négatifs* et le troisième est négligeable —
+2 500 m² de terrain en plus n'y ajouteraient que 2 100 €.
+
+Ce ne sont pas des erreurs de calcul. Une fois la valeur du bâti retirée, les
+grands terrains se trouvent dans l'arrière-pays, moins cher, tandis que la prime
+va au littoral ou à la proximité de la ville, sur de petites parcelles. La
+surface de terrain n'y explique pas le prix. L'application préfère ne rien
+proposer plutôt qu'avancer un chiffre qui serait plus petit que sa propre marge
+d'erreur.
 
 DVF enregistre le prix, l'adresse et les surfaces — **rien d'autre**. Le fichier
 ignore l'état du bien, les travaux, l'exposition, la vue, le DPE, le bruit.

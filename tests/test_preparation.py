@@ -342,3 +342,34 @@ class TestChaineComplete(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPertinenceDuPrixDuTerrain(unittest.TestCase):
+    """Une pente trop faible n'est pas une mesure : c'est du bruit.
+
+    L'ajustement terrain est plafonne a 2 500 m2. Sous 3 EUR/m2, il pese moins
+    que la fourchette minimale que l'estimation s'impose deja : le publier
+    donnerait l'illusion d'une precision inexistante.
+    """
+
+    @staticmethod
+    def points(pente, n=4000):
+        return [(float(100 + (i * 1900) // n), pente * (100 + (i * 1900) // n))
+                for i in range(n)]
+
+    def test_pente_negligeable_ecartee(self):
+        # cas reel : Haute-Garonne, 0,85 EUR/m2 -> +2 100 EUR pour 2 500 m2
+        self.assertIsNone(prep.pente_theil_sen(self.points(0.85), random.Random(1)))
+        self.assertIsNone(prep.pente_theil_sen(self.points(2.9), random.Random(1)))
+
+    def test_pente_utile_conservee(self):
+        # cas reels : Drome 10,5 ; Pyrenees-Orientales 63,7
+        for pente in (10.5, 63.7):
+            self.assertIsNotNone(prep.pente_theil_sen(self.points(pente), random.Random(1)),
+                                 "%s EUR/m2 est une mesure exploitable" % pente)
+
+    def test_le_seuil_reste_coherent_avec_le_plafond_d_ajustement(self):
+        """Garde-fou : le seuil doit rester lie a ce que l'ajustement peut peser."""
+        effet_max = prep.PRIX_TERRAIN_MIN * prep.TERRAIN_PLAFOND_REGRESSION
+        self.assertGreaterEqual(effet_max, 5000,
+                                "sous ce seuil, l'ajustement est invisible dans la fourchette")

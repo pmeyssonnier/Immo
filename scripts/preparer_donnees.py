@@ -114,9 +114,22 @@ BANDES_SURFACE = [(0, 70), (70, 90), (90, 110), (110, 130),
 # --- Prix marginal du terrain ----------------------------------------------
 TERRAIN_PLAFOND_REGRESSION = 2500.0
 # Plage de plausibilite d'un prix de terrain attenant, en EUR/m2. Une valeur qui
-# en sort n'est pas "extreme" : elle signale que la regression n'a rien trouve
-# de fiable dans cette commune. On lui substitue alors la valeur departementale.
-PRIX_TERRAIN_MIN, PRIX_TERRAIN_MAX = 1.0, 70.0
+# en sort n'est pas "extreme" : elle signale que le terrain n'explique pas le
+# prix dans ce departement. On ne publie alors AUCUN chiffre.
+#
+# La borne basse est un seuil de PERTINENCE, pas de plausibilite. L'ajustement
+# est plafonne a 2 500 m2 d'ecart de terrain : a 3 EUR/m2, cela represente
+# 7 500 EUR, soit environ 3 % d'une maison a 250 000 EUR -- moins que la
+# fourchette minimale de +/-4 % que l'estimation s'impose deja. En dessous, le
+# chiffre serait plus petit que sa propre marge d'erreur.
+# Mesure a l'appui : la Haute-Garonne ressort a 0,85 EUR/m2, soit +2 100 EUR
+# pour 2 500 m2 de terrain supplementaires. C'est du bruit, pas une mesure ;
+# avec l'ancienne borne a 1,0 elle passait pourtant de justesse.
+#
+# La borne haute laisse de la marge au littoral : les Pyrenees-Orientales
+# ressortent a 63 EUR/m2, ce qui est reel. Un plafond trop bas rejetterait a
+# tort un departement cotier.
+PRIX_TERRAIN_MIN, PRIX_TERRAIN_MAX = 3.0, 120.0
 # Le prix du terrain est calcule au niveau du DEPARTEMENT, jamais par commune.
 # Mesure faite sur des donnees simulees calibrees sur le reel : avec 600 ventes,
 # l'estimation varie de 2 a 23 EUR/m2 selon l'echantillon (ecart-type 6,6) pour
