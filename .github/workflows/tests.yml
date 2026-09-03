@@ -1,6 +1,12 @@
 # Verifications automatiques a chaque modification du code.
-# Aucune installation, aucun acces internet : tout tourne sur des donnees de test
-# rangees dans le depot.
+#
+# Ce workflow n'utilise AUCUNE action externe (aucun "uses:"). Raison : quand un
+# depot change de visibilite, GitHub reinitialise la politique des actions
+# autorisees, et meme les actions officielles (actions/checkout) se retrouvent
+# bloquees -- tous les workflows echouent alors au demarrage. En se limitant a
+# des commandes, ce workflow fonctionne quelle que soit cette politique.
+#
+# Le runner Ubuntu fournit deja Python 3 et Node : rien a installer.
 
 name: Tests
 
@@ -14,18 +20,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Récupérer le code
+        run: |
+          git clone --depth 1 --branch "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" .
+          echo "python : $(python3 --version) | node : $(node --version)"
 
       - name: Nettoyage des données DVF (pièges du format, contours, chaîne complète)
-        run: python -m unittest discover tests -v
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+        run: python3 -m unittest discover tests -v
 
       - name: Algorithme d'estimation
         run: node --test tests/test_estimation.mjs

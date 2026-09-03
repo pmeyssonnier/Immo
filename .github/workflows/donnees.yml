@@ -8,14 +8,15 @@
 #   1. tout seul, le 5 de chaque mois ;
 #   2. a la main : onglet "Actions" > "Mise a jour des donnees DVF" > "Run workflow" ;
 #   3. en modifiant le fichier .github/declencher-donnees.txt (y ecrire la date
-#      du jour suffit). Pratique quand on n'a pas acces au bouton.
+#      du jour suffit). Pratique quand le bouton n'est pas accessible.
+#
+# Comme tests.yml, ce workflow n'utilise AUCUNE action externe : il reste donc
+# fonctionnel meme si la politique du depot bloque actions/checkout.
 
 name: Mise à jour des données DVF
 
 on:
   schedule:
-    # le 5 de chaque mois a 3 h (heure universelle). Les donnees officielles ne
-    # sortent que deux fois par an, mais verifier tous les mois ne coute rien.
     - cron: "0 3 5 * *"
   workflow_dispatch:
     inputs:
@@ -43,14 +44,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+      - name: Récupérer le code
+        run: |
+          git clone --branch "$GITHUB_REF_NAME" \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" .
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Télécharger et préparer les données
-        run: python scripts/preparer_donnees.py --annees "${{ inputs.annees || '5' }}" --sortie data
+        run: python3 scripts/preparer_donnees.py --annees "${{ inputs.annees || '5' }}" --sortie data
 
       - name: Afficher le rapport
         if: always()
@@ -62,19 +64,17 @@ jobs:
 
       - name: Contrôles de cohérence
         # Mieux vaut faire échouer le robot que publier des chiffres absurdes.
-        run: python scripts/preparer_donnees.py --verifier data
+        run: python3 scripts/preparer_donnees.py --verifier data
 
       - name: Vérifier que le site sert bien ces données
-        run: python -m unittest tests.test_site -v
+        run: python3 -m unittest tests.test_site -v
 
       - name: Enregistrer les nouvelles données
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data
           if git diff --staged --quiet; then
             echo "Aucun changement : les données étaient déjà à jour."
           else
             git commit -m "Données DVF mises à jour ($(date +%F))"
-            git push
+            git push origin "HEAD:$GITHUB_REF_NAME"
           fi

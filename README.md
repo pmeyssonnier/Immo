@@ -129,6 +129,14 @@ Moins de 5 ventes de maison y ont été enregistrées sur la période : aucune
 statistique honnête n'est calculable. C'est fréquent dans les villages de
 montagne ardéchois.
 
+**Tous les workflows échouent en 0 seconde (« startup_failure »).**
+Cela arrive typiquement après un changement de visibilité du dépôt : GitHub
+réinitialise la politique des actions autorisées, et même les actions
+officielles se retrouvent bloquées. Les workflows de ce dépôt ont été écrits
+**sans aucune action externe** justement pour y être insensibles. Si le
+problème réapparaît malgré tout : `Settings` → `Actions` → `General` →
+**Actions permissions** → *Allow all actions and reusable workflows* → `Save`.
+
 **Le robot a échoué (croix rouge dans l'onglet Actions).**
 Il refuse volontairement de publier des données incohérentes. Ouvrez le
 détail : le rapport indique quel contrôle a échoué. Vous pouvez relancer
