@@ -11,13 +11,66 @@ tests/verification_navigateur.mjs.
 
 import json
 import os
+import re
+import struct
 import threading
 import unittest
 import urllib.request
+import zlib
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+SIGNATURE_PNG = b"\x89PNG\r\n\x1a\n"
+
+
+def entete_png(octets):
+    """Lit l'en-tete d'un PNG sans bibliotheque d'images.
+
+    Le format est fige : 8 octets de signature, puis 4 octets de longueur de
+    bloc, puis les 4 lettres "IHDR". Les donnees utiles commencent donc a la
+    position 16 : largeur (4 octets), hauteur (4 octets), profondeur, type de
+    couleur, compression, filtre, entrelacement -- tous en gros-boutiste.
+    Personne ne devine ces decalages : d'ou ce commentaire.
+    """
+    if not octets.startswith(SIGNATURE_PNG):
+        raise ValueError("ce fichier n'est pas un PNG")
+    largeur, hauteur, profondeur, type_couleur, _compression, _filtre, entrelacement = \
+        struct.unpack(">IIBBBBB", octets[16:29])
+    return largeur, hauteur, profondeur, type_couleur, entrelacement
+
+
+def pixel_haut_gauche(octets):
+    """Renvoie le (R, V, B, A) du pixel en haut a gauche, sans bibliotheque.
+
+    Astuce qui rend cela simple : sur la PREMIERE ligne d'une image, le pixel
+    du dessus et celui de gauche sont consideres comme nuls. Les cinq filtres
+    du format PNG predisent alors tous zero, quel que soit celui qui a ete
+    choisi. La valeur brute lue est donc directement la vraie couleur.
+    """
+    _largeur, _hauteur, profondeur, type_couleur, entrelacement = entete_png(octets)
+    if profondeur != 8 or entrelacement != 0 or type_couleur not in (2, 6):
+        raise ValueError("attendu : 8 bits, RVB ou RVBA, non entrelace")
+
+    # parcours des blocs : longueur (4), type (4), donnees, controle (4)
+    donnees, position = b"", 8
+    while position < len(octets):
+        longueur = struct.unpack(">I", octets[position:position + 4])[0]
+        type_bloc = octets[position + 4:position + 8]
+        if type_bloc == b"IDAT":
+            donnees += octets[position + 8:position + 8 + longueur]
+        elif type_bloc == b"IEND":
+            break
+        position += 12 + longueur
+
+    brut = zlib.decompress(donnees)
+    # brut[0] = numero du filtre de la ligne, puis les octets du premier pixel.
+    # Type 2 = RVB (pas de canal alpha du tout) : on complete par une opacite
+    # totale, puisque c'est exactement ce que cela signifie.
+    if type_couleur == 2:
+        return tuple(brut[1:4]) + (255,)
+    return tuple(brut[1:5])
 
 
 class TestSite(unittest.TestCase):
@@ -42,15 +95,31 @@ class TestSite(unittest.TestCase):
     def json(self, chemin):
         return json.loads(self.obtenir(chemin).decode("utf-8"))
 
+    @staticmethod
+    def chemins_de_l_entete(page):
+        """Tous les href/src declares avant <body>."""
+        entete = page.lower().split("<body")[0]
+        return re.findall(r'(?:href|src)="([^"]+)"', entete)
+
     def test_page_et_ressources(self):
         page = self.obtenir("index.html").decode("utf-8")
         self.assertIn("Immo", page)
-        # Leaflet doit venir du depot, jamais d'un CDN
         self.assertIn('src="vendor/leaflet/leaflet.js"', page)
-        self.assertNotIn("cdn", page.lower().split("<body")[0].replace("cdnjs", "cdn"))
+
+        # Rien dans l'en-tete ne doit venir de l'exterieur : ni bibliotheque
+        # hebergee ailleurs, ni chemin absolu. Un chemin commencant par une
+        # barre oblique viserait la racine du domaine et non notre sous-dossier
+        # -- l'erreur silencieuse classique de ce genre de site.
+        for chemin in self.chemins_de_l_entete(page):
+            self.assertFalse(
+                chemin.startswith(("http:", "https:", "//", "/")),
+                "ressource externe ou chemin absolu dans l'en-tete : " + chemin)
+
         for ressource in ["css/style.css", "js/app.js", "js/estimation.js",
                           "vendor/leaflet/leaflet.js", "vendor/leaflet/leaflet.css",
-                          "vendor/leaflet.markercluster/leaflet.markercluster.js"]:
+                          "vendor/leaflet.markercluster/leaflet.markercluster.js",
+                          "manifest.json", "icones/icone.svg",
+                          "icones/apple-touch-icon.png", "icones/icone-512.png"]:
             self.assertGreater(len(self.obtenir(ressource)), 100, ressource + " est vide")
 
     def test_fichiers_de_donnees(self):
@@ -88,6 +157,74 @@ class TestSite(unittest.TestCase):
         premiere = dict(zip(ventes["champs"], ventes["ventes"][0]))
         self.assertGreater(premiere["prix"], 0)
         self.assertGreater(premiere["sbati"], 0)
+
+    def test_icones_declarees_dans_la_page(self):
+        """Sans ces balises, le telephone fabrique une vignette floue de la page."""
+        page = self.obtenir("index.html").decode("utf-8")
+        entete = page.lower().split("<body")[0]
+        for attendu in ['rel="icon"', 'rel="apple-touch-icon"',
+                        'rel="manifest"', 'name="theme-color"']:
+            self.assertIn(attendu, entete, "manquant dans l'en-tete : " + attendu)
+
+        # chaque icone declaree doit exister reellement
+        for chemin in self.chemins_de_l_entete(page):
+            if chemin.startswith("icones/") or chemin == "manifest.json":
+                self.assertGreater(len(self.obtenir(chemin)), 50, chemin + " est vide")
+
+    def test_manifeste(self):
+        manifeste = self.json("manifest.json")
+        for cle in ["name", "short_name", "start_url", "scope", "display",
+                    "background_color", "theme_color", "icons"]:
+            self.assertIn(cle, manifeste, "manifest.json : champ '%s' manquant" % cle)
+
+        # decision produit verrouillee par un test
+        self.assertEqual(manifeste["short_name"], "Ventes DVF")
+
+        # site publie dans un sous-dossier : jamais de chemin absolu
+        for cle in ("start_url", "scope"):
+            self.assertFalse(manifeste[cle].startswith("/"),
+                             "%s absolu : le raccourci ouvrirait la mauvaise adresse" % cle)
+
+        for icone in manifeste["icons"]:
+            self.assertFalse(icone["src"].startswith("/"), icone["src"] + " est absolu")
+            octets = self.obtenir(icone["src"])
+            largeur, hauteur = entete_png(octets)[:2]
+            # attrape la faute classique : annoncer 512x512 et livrer un 192
+            self.assertEqual("%dx%d" % (largeur, hauteur), icone["sizes"],
+                             "%s fait %dx%d mais est annonce %s"
+                             % (icone["src"], largeur, hauteur, icone["sizes"]))
+
+        maskables = [i for i in manifeste["icons"] if "maskable" in i.get("purpose", "")]
+        self.assertTrue(maskables, "sans icone 'maskable', Android cerne l'icone de blanc")
+        self.assertGreaterEqual(int(maskables[0]["sizes"].split("x")[0]), 192)
+
+    def test_icones_plein_cadre_pour_les_telephones(self):
+        """iOS ne gere pas la transparence : il remplit le vide avec du NOIR.
+
+        Le fichier destine a iOS doit donc couvrir tout le carre, sans un seul
+        pixel transparent -- sinon les coins arrondis deviennent des coins noirs
+        baveux. Meme exigence pour l'icone adaptative d'Android.
+        Verifier la couleur du pixel du coin prouve les trois choses a la fois :
+        plein cadre, opacite totale, et bonne couleur de marque.
+        """
+        BLEU_DE_MARQUE = (0x1f, 0x4e, 0x79, 255)
+        SANS_CANAL_ALPHA = 2          # type de couleur PNG : RVB seul
+        AVEC_CANAL_ALPHA = 6          # RVBA
+
+        for fichier in ("icones/apple-touch-icon.png", "icones/icone-maskable-512.png"):
+            octets = self.obtenir(fichier)
+            # Garantie la plus forte possible : le fichier n'a meme pas de canal
+            # alpha, la transparence n'y est donc pas representable.
+            self.assertEqual(entete_png(octets)[3], SANS_CANAL_ALPHA,
+                             fichier + " : ce fichier ne doit avoir aucun canal alpha")
+            self.assertEqual(pixel_haut_gauche(octets), BLEU_DE_MARQUE,
+                             fichier + " : le coin devrait etre du bleu de marque")
+
+        # a l'inverse, les icones de navigateur ont bien des coins arrondis
+        octets = self.obtenir("icones/icone-512.png")
+        self.assertEqual(entete_png(octets)[3], AVEC_CANAL_ALPHA)
+        self.assertEqual(pixel_haut_gauche(octets)[3], 0,
+                         "icone-512.png : le coin devrait etre transparent")
 
     def test_extension_json_pour_les_contours(self):
         """GitHub Pages ne compresse pas les fichiers .geojson : 4x plus lourd."""

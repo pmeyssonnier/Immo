@@ -1,0 +1,6 @@
+<!-- Produit par scripts/generer_icones.mjs - ne pas modifier a la main -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="#1f4e79"/>
+  <path d="M256 132 L396 252 L116 252 Z" fill="#fd8d3c"/>
+  <rect x="164" y="252" width="184" height="128" rx="12" fill="#ffffff"/>
+</svg>

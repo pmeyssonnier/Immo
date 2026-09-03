@@ -58,6 +58,19 @@ Ensuite, le robot repasse tout seul **le 5 de chaque mois**. Vous n'avez plus ri
 5. Le bouton **Copier la synthèse** met un résumé dans le presse-papier, prêt à
    coller dans un avis de valeur.
 
+### Mettre l'application sur l'écran d'accueil du téléphone
+Ouvrez l'adresse du site sur votre téléphone, puis :
+- **iPhone** (Safari) : bouton Partager <kbd>⬆︎</kbd> → *Sur l'écran d'accueil* ;
+- **Android** (Chrome) : menu <kbd>⋮</kbd> → *Ajouter à l'écran d'accueil*.
+
+L'icône est une maison blanche et orange sur fond bleu, et le nom affiché est
+**Ventes DVF**. Le raccourci ouvre l'application en plein écran, sans la barre
+d'adresse — ce qui rend la carte nettement plus lisible.
+
+> Chrome n'affichera **pas** de bandeau « Installer l'application » : cela
+> demanderait un mécanisme de fonctionnement hors ligne, que le site n'a pas.
+> Passez par le menu, comme ci-dessus.
+
 ### Ce que veulent dire les chiffres
 
 - **Estimation** : la valeur la plus probable, arrondie.
@@ -129,6 +142,14 @@ Moins de 5 ventes de maison y ont été enregistrées sur la période : aucune
 statistique honnête n'est calculable. C'est fréquent dans les villages de
 montagne ardéchois.
 
+**J'ai changé l'icône mais mon téléphone affiche encore l'ancienne.**
+Normal : iOS **fige** l'icône au moment où le raccourci est créé et ne la met
+jamais à jour ensuite. Supprimez le raccourci de l'écran d'accueil et
+recréez-le. Même logique dans les navigateurs, qui gardent les favicons
+plusieurs jours dans une réserve à part. Si l'icône doit changer un jour, le
+plus sûr est de **renommer le fichier** (par exemple `icone-2.png`) plutôt que
+d'ajouter `?v=2` derrière son nom.
+
 **Tous les workflows échouent en 0 seconde (« startup_failure »).**
 Cela arrive typiquement après un changement de visibilité du dépôt : GitHub
 réinitialise la politique des actions autorisées, et même les actions
@@ -153,6 +174,8 @@ détail : le rapport indique quel contrôle a échoué. Vous pouvez relancer
 | `data/` | les données préparées (produites par le robot) |
 | `scripts/preparer_donnees.py` | le robot qui télécharge et nettoie DVF |
 | `scripts/generer_demo.py` | fabrique le jeu de démonstration |
+| `icones/` + `manifest.json` | l'icône de l'application et sa fiche d'identité (nom affiché, couleurs) |
+| `scripts/generer_icones.mjs` | redessine les icônes — **à ne jamais lancer**, les fichiers sont déjà là |
 | `vendor/` | Leaflet (la bibliothèque de carte), figée dans le dépôt |
 | `tests/` | les vérifications automatiques |
 | `.github/workflows/` | le robot mensuel et les tests |
@@ -183,5 +206,16 @@ node tests/verification_navigateur.mjs
    « données insuffisantes » ou afficher une fiabilité faible, **et non un chiffre fantaisiste**.
 6. **Le seul test qui compte vraiment** : comparer trois estimations à trois ventes
    que vous connaissez réellement.
+
+### Et sur le téléphone (5 points, une seule fois)
+Ces cinq points ne peuvent être vérifiés que sur un vrai téléphone — aucun test
+automatique ne les couvre.
+1. Ouvrir l'adresse du site sur le téléphone.
+2. L'ajouter à l'écran d'accueil (voir la section 2).
+3. L'icône est bien une **maison blanche au toit orange sur fond bleu** — ni carré
+   noir, ni bord noir autour, ni anneau blanc.
+4. Le nom sous l'icône est **Ventes DVF**, sans être coupé.
+5. En ouvrant le raccourci, il n'y a **pas de barre d'adresse** : la carte occupe
+   tout l'écran.
 
 Voir aussi [MENTIONS-LEGALES.md](MENTIONS-LEGALES.md).

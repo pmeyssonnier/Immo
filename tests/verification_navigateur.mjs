@@ -13,6 +13,10 @@ import { chromium } from "playwright-core";
 
 const SP = process.env.SORTIE || ".";
 const PORT = process.env.PORT || "8321";
+// BASE permet de rejouer le cas de PRODUCTION, ou le site vit dans un
+// sous-dossier (…/Immo/) et non a la racine du domaine. Sans cela, on ne
+// testerait jamais la resolution reelle des chemins relatifs.
+const BASE = process.env.BASE || "/";
 const CHEMIN_CHROME = process.env.CHROME
   || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 const erreurs = [];
@@ -30,7 +34,7 @@ const page = await navigateur.newPage({ viewport: { width: 1440, height: 900 } }
 page.on("pageerror", (e) => erreurs.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error") erreurs.push("console: " + m.text()); });
 
-await page.goto(`http://localhost:${PORT}/`, { waitUntil: "networkidle" });
+await page.goto(`http://localhost:${PORT}${BASE}`, { waitUntil: "networkidle" });
 await page.waitForSelector("#application:not([hidden])", { timeout: 20000 });
 
 // --- 1. la liste des communes -------------------------------------------
@@ -165,6 +169,61 @@ verifier(apresDeplacement.valeur === "135",
 // le defilement survivent.
 verifier(apresDeplacement.defilement === defilementAvant,
   `position de la liste conservée (${apresDeplacement.defilement} / ${defilementAvant})`);
+
+// --- 6 ter. les icônes et le manifeste ------------------------------------
+// On demande au NAVIGATEUR de résoudre lui-même chaque chemin relatif, puis de
+// le télécharger. C'est la seule façon de prouver qu'ils fonctionneront depuis
+// le sous-dossier de production.
+const icones = await page.evaluate(async () => {
+  const liens = [...document.querySelectorAll('link[rel*="icon"], link[rel="manifest"]')];
+  const resultats = [];
+  for (const lien of liens) {
+    let statut = 0;
+    try { statut = (await fetch(lien.href, { cache: "no-store" })).status; } catch (e) { statut = -1; }
+    resultats.push({
+      rel: lien.getAttribute("rel"),
+      declare: lien.getAttribute("href"),
+      resolu: lien.href,
+      statut,
+    });
+  }
+  return resultats;
+});
+verifier(icones.length >= 5, `${icones.length} icônes/manifeste déclarés dans la page`);
+const cassees = icones.filter((i) => i.statut !== 200);
+verifier(cassees.length === 0, cassees.length
+  ? "chemins cassés : " + cassees.map((i) => `${i.declare} → ${i.statut}`).join(", ")
+  : "toutes les icônes se chargent (chemins résolus par le navigateur)");
+const absolus = icones.filter((i) => i.declare.startsWith("/") || i.declare.startsWith("http"));
+verifier(absolus.length === 0, absolus.length
+  ? "chemins absolus : " + absolus.map((i) => i.declare).join(", ")
+  : "aucun chemin absolu (indispensable en sous-dossier)");
+verifier(icones.every((i) => i.resolu.includes(BASE === "/" ? "/" : BASE)),
+  `résolus sous ${BASE} (ex. ${icones[0].resolu.replace(/^https?:\/\/[^/]+/, "")})`);
+
+// le SVG doit réellement se rastériser, pas seulement répondre 200
+const svgOk = await page.evaluate(() => new Promise((resoudre) => {
+  const lien = document.querySelector('link[type="image/svg+xml"]');
+  if (!lien) return resoudre("aucun favicon SVG déclaré");
+  const img = new Image();
+  img.onload = () => resoudre(img.naturalWidth > 0 ? null : "SVG de largeur nulle");
+  img.onerror = () => resoudre("le SVG ne se rastérise pas");
+  img.src = lien.href;
+}));
+verifier(svgOk === null, svgOk || "le favicon SVG se rastérise correctement");
+
+// le manifeste : parsable, et son start_url tombe bien sur le site
+const manifeste = await page.evaluate(async () => {
+  const lien = document.querySelector('link[rel="manifest"]');
+  const m = await (await fetch(lien.href, { cache: "no-store" })).json();
+  return { ...m, urlDemarrage: new URL(m.start_url, lien.href).pathname };
+});
+verifier(manifeste.short_name === "Ventes DVF",
+  `étiquette de l'écran d'accueil : « ${manifeste.short_name} »`);
+verifier(manifeste.urlDemarrage === BASE,
+  `start_url résolu → ${manifeste.urlDemarrage} (attendu ${BASE})`);
+verifier(manifeste.icons.length >= 3 && manifeste.icons.some((i) => /maskable/.test(i.purpose || "")),
+  `${manifeste.icons.length} icônes dans le manifeste, dont une « maskable »`);
 
 // --- 7. aucune erreur JavaScript -----------------------------------------
 const vraiesErreurs = erreurs.filter((e) => !/tile|ERR_|net::|Failed to load resource/i.test(e));

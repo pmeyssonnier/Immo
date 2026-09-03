@@ -7,6 +7,19 @@
   <meta name="description" content="Les ventes de maisons réellement enregistrées dans le Gard
         et l'Ardèche, sur carte, avec estimation par comparaison.">
 
+  <!-- Icônes et manifeste. Tous les chemins sont RELATIFS : le site est publié
+       dans un sous-dossier (…/Immo/), donc un chemin commençant par une barre
+       oblique pointerait ailleurs et ne trouverait rien, sans message d'erreur.
+       Le SVG est placé en dernier volontairement : les navigateurs qui ne le
+       comprennent pas retiennent la dernière icône qu'ils savent afficher, et
+       ceux qui le comprennent le préfèrent explicitement. -->
+  <meta name="theme-color" content="#1f4e79">
+  <link rel="icon" type="image/png" sizes="32x32" href="icones/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icones/favicon-16.png">
+  <link rel="icon" type="image/svg+xml" sizes="any" href="icones/icone.svg">
+  <link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.css">
   <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.Default.css">
