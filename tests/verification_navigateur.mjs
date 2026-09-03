@@ -1,0 +1,176 @@
+// Verification de bout en bout : on ouvre reellement le site dans un navigateur
+// et on refait les gestes de l'utilisateur.
+//
+// Ce test n'est PAS lance par l'integration continue (il demande un navigateur).
+// Pour le lancer a la main :
+//     npm install playwright-core
+//     python3 -m http.server 8321 &
+//     CHROME=/chemin/vers/chrome node tests/verification_navigateur.mjs
+//
+// Les captures d'ecran sont ecrites a cote, dans le dossier indique par SORTIE.
+
+import { chromium } from "playwright-core";
+
+const SP = process.env.SORTIE || ".";
+const PORT = process.env.PORT || "8321";
+const CHEMIN_CHROME = process.env.CHROME
+  || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
+const erreurs = [];
+let echecs = 0;
+function verifier(ok, message) {
+  console.log((ok ? "  OK   " : "  ECHEC") + "  " + message);
+  if (!ok) echecs += 1;
+}
+
+const navigateur = await chromium.launch({
+  executablePath: CHEMIN_CHROME,
+  args: ["--no-sandbox"],
+});
+const page = await navigateur.newPage({ viewport: { width: 1440, height: 900 } });
+page.on("pageerror", (e) => erreurs.push("pageerror: " + e.message));
+page.on("console", (m) => { if (m.type() === "error") erreurs.push("console: " + m.text()); });
+
+await page.goto(`http://localhost:${PORT}/`, { waitUntil: "networkidle" });
+await page.waitForSelector("#application:not([hidden])", { timeout: 20000 });
+
+// --- 1. la liste des communes -------------------------------------------
+const nbCommunes = await page.locator("#liste-communes li").count();
+verifier(nbCommunes > 600, `liste : ${nbCommunes} communes affichées (attendu ~692)`);
+const groupes = await page.locator("#liste-communes details summary").allInnerTexts();
+verifier(groupes.length === 2 && groupes[0].includes("Gard") && groupes[1].includes("Ardèche"),
+  `groupes par département : ${JSON.stringify(groupes)}`);
+
+// --- 2. la carte et le choroplèthe --------------------------------------
+// Leaflet dessine les 692 communes sur un CANEVAS (option preferCanvas), pas en
+// SVG : on verifie donc que le canevas est bien peint, et avec des couleurs
+// variees -- c'est la preuve que le choroplethe fonctionne.
+const peinture = await page.evaluate(() => {
+  const c = document.querySelector("#carte canvas");
+  if (!c) return null;
+  const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+  let peints = 0; const couleurs = new Set();
+  for (let i = 0; i < d.length; i += 4 * 97) {
+    if (d[i + 3] > 10) { peints += 1; couleurs.add(`${d[i]},${d[i + 1]},${d[i + 2]}`); }
+  }
+  return { peints, couleurs: couleurs.size };
+});
+verifier(peinture && peinture.peints > 200 && peinture.couleurs > 20,
+  `choroplèthe peint : ${peinture ? peinture.peints : 0} pixels, ${peinture ? peinture.couleurs : 0} couleurs distinctes`);
+verifier(await page.locator(".legende").isVisible(), "légende des prix affichée");
+
+// --- 3. la recherche sans accents ---------------------------------------
+await page.fill("#champ-recherche", "nimes");
+await page.waitForTimeout(250);
+const trouves = await page.locator("#liste-communes li .nom").allInnerTexts();
+verifier(trouves.some((t) => t === "Nîmes"),
+  `recherche « nimes » trouve « Nîmes » (${trouves.length} résultat(s))`);
+await page.fill("#champ-recherche", "");
+await page.waitForTimeout(200);
+
+// --- 4. sélection d'une commune -----------------------------------------
+await page.click('#liste-communes li[data-code="30189"]');
+await page.waitForSelector("#panneau-droit:not([hidden])", { timeout: 10000 });
+const titre = await page.locator("#panneau-droit h2").innerText();
+verifier(titre === "Nîmes", `panneau ouvert sur « ${titre} »`);
+const stats = await page.locator(".stats-commune").isVisible();
+verifier(stats, "statistiques de la commune affichées");
+
+// les marqueurs de ventes doivent apparaître
+await page.waitForTimeout(2500);
+// Les ventes sont regroupees en "bulles" (markercluster) : ce sont de vraies
+// icones dans le DOM, donc comptables. #carte canvas existe toujours et ne
+// prouverait rien -- c'est le piege de la premiere version de ce test.
+const bulles = await page.locator("#carte .leaflet-marker-icon").count();
+verifier(bulles > 0, `ventes de Nîmes affichées sur la carte (${bulles} groupe(s) de points)`);
+// et en zoomant a fond, les ventes doivent se separer en points individuels
+await page.mouse.wheel(0, -600); await page.waitForTimeout(1500);
+const apresZoom = await page.locator("#carte .leaflet-marker-icon").count();
+verifier(apresZoom > 0, `après zoom : ${apresZoom} élément(s) de vente`);
+
+verifier(await page.locator("#avertissement-fond").isVisible(),
+  "avertissement « fond de carte indisponible » affiché ET conservé");
+await page.screenshot({ path: SP + "/apercu-1-carte.png" });
+
+// --- 5. estimation --------------------------------------------------------
+await page.fill("#surface-habitable", "120");
+await page.fill("#surface-terrain", "600");
+await page.fill("#nombre-pieces", "5");
+await page.click(".bouton-principal");
+await page.waitForSelector(".resultat", { timeout: 15000 });
+
+const valeur = await page.locator(".valeur-principale").innerText();
+verifier(/\d/.test(valeur), `estimation produite : ${valeur}`);
+const fourchette = await page.locator(".fourchette").innerText();
+verifier(fourchette.includes("–"), `fourchette : ${fourchette}`);
+const confiance = await page.locator(".confiance").innerText();
+verifier(/Fiabilité/.test(confiance), `fiabilité : ${confiance.split("—")[0].trim()}`);
+const nbComparables = await page.locator(".comparables tbody tr").count();
+verifier(nbComparables > 0 && nbComparables <= 10, `${nbComparables} ventes comparables listées`);
+
+await page.screenshot({ path: SP + "/apercu-2-estimation.png" });
+
+// --- 6. cas limite : commune sans assez de ventes -------------------------
+const codeVide = await page.evaluate(async () => {
+  const r = await fetch("data/communes.json"); const t = await r.json();
+  const ligne = t.valeurs.find((l) => l[5] < 5 && l[5] >= 0);
+  return ligne ? ligne[0] : null;
+});
+if (codeVide) {
+  await page.fill("#champ-recherche", "");
+  await page.waitForTimeout(150);
+  await page.evaluate((code) => {
+    document.querySelector(`#liste-communes li[data-code="${code}"]`).click();
+  }, codeVide);
+  await page.waitForTimeout(600);
+  await page.fill("#surface-habitable", "110");
+  await page.click(".bouton-principal");
+  await page.waitForTimeout(2500);
+  const texte = await page.locator("#resultat-estimation").innerText();
+  // Deux reponses honnetes possibles : soit on refuse, soit on annonce
+  // clairement que l'on s'est appuye sur les communes voisines ET on n'affiche
+  // pas une fiabilite flatteuse.
+  const refus = /Pas assez de ventes/.test(texte);
+  const elargissementAnnonce = /communes limitrophes|département par tranche/.test(texte);
+  const fiabiliteProuvee = /Fiabilité\s*:\s*Faible/.test(texte);
+  const honnete = refus || (elargissementAnnonce && fiabiliteProuvee);
+  verifier(honnete, `commune ${codeVide} (peu de ventes) : ${refus ? "refus de chiffrer"
+    : "élargissement annoncé + fiabilité faible"}`);
+  if (!honnete) console.log(texte.slice(0, 400));
+  await page.screenshot({ path: SP + "/apercu-3-donnees-faibles.png" });
+} else {
+  verifier(true, "aucune commune à faible volume dans ce jeu (test ignoré)");
+}
+
+// --- 6 bis. non-regression : deplacer la carte ne doit rien casser ---------
+await page.fill("#champ-recherche", "");
+await page.waitForTimeout(200);
+await page.evaluate(() => document.querySelector('#liste-communes li[data-code="30189"]').click());
+await page.waitForTimeout(800);
+await page.fill("#surface-habitable", "135");
+const defilementAvant = await page.evaluate(() => {
+  const l = document.querySelector("#liste-communes"); l.scrollTop = 400; return l.scrollTop;
+});
+await page.mouse.move(700, 500);
+await page.mouse.down(); await page.mouse.move(600, 460, { steps: 8 }); await page.mouse.up();
+await page.waitForTimeout(1200);
+const apresDeplacement = await page.evaluate(() => ({
+  valeur: document.querySelector("#surface-habitable").value,
+  focus: document.activeElement && document.activeElement.id,
+  defilement: document.querySelector("#liste-communes").scrollTop,
+}));
+verifier(apresDeplacement.valeur === "135",
+  `saisie conservée après déplacement de la carte (« ${apresDeplacement.valeur} »)`);
+// Note : faire GLISSER la carte donne legitimement le focus a la carte. Ce qui
+// compte est que le panneau n'ait pas ete reconstruit -- donc que la saisie et
+// le defilement survivent.
+verifier(apresDeplacement.defilement === defilementAvant,
+  `position de la liste conservée (${apresDeplacement.defilement} / ${defilementAvant})`);
+
+// --- 7. aucune erreur JavaScript -----------------------------------------
+const vraiesErreurs = erreurs.filter((e) => !/tile|ERR_|net::|Failed to load resource/i.test(e));
+verifier(vraiesErreurs.length === 0,
+  vraiesErreurs.length ? "erreurs JS : " + vraiesErreurs.join(" | ") : "aucune erreur JavaScript");
+
+await navigateur.close();
+console.log(echecs === 0 ? "\nTOUT EST CONFORME" : `\n${echecs} VERIFICATION(S) EN ECHEC`);
+process.exit(echecs === 0 ? 0 : 1);

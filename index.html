@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Immo Gard &amp; Ardèche — ventes réelles et estimation</title>
+  <meta name="description" content="Les ventes de maisons réellement enregistrées dans le Gard
+        et l'Ardèche, sur carte, avec estimation par comparaison.">
+
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.css">
+  <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="entete">
+  <div class="titre">
+    <h1>Immo <span>Gard &amp; Ardèche</span></h1>
+    <p class="sous-titre">
+      <strong id="nb-ventes">…</strong> ventes de maisons réellement enregistrées ·
+      millésimes <span id="millesimes">…</span> ·
+      source&nbsp;: <a href="https://www.data.gouv.fr/datasets/demandes-de-valeurs-foncieres-geolocalisees"
+        target="_blank" rel="noopener">DVF</a>
+    </p>
+  </div>
+</header>
+
+<div id="bandeau-demo" class="bandeau-demo" hidden>
+  <strong>Données de démonstration.</strong> Les prix affichés sont <em>inventés</em> :
+  ils servent uniquement à mettre le site au point. Lancez le robot
+  « Mise à jour des données DVF » dans l'onglet <em>Actions</em> de GitHub pour
+  charger les vraies ventes.
+</div>
+
+<div id="chargement" class="chargement">
+  <p>Chargement des données…</p>
+</div>
+
+<main id="application" class="application" hidden>
+  <aside id="panneau-gauche" class="panneau-gauche"></aside>
+  <section id="zone-carte" class="zone-carte"></section>
+  <aside id="panneau-droit" class="panneau-droit" hidden></aside>
+</main>
+
+<!-- Leaflet est copié dans le dépôt (dossier vendor/), pas chargé depuis un CDN :
+     l'application ne peut donc pas tomber en panne à cause d'un serveur extérieur.
+     Ces deux scripts sont des scripts « classiques » : ils s'exécutent AVANT le
+     module ci-dessous, donc la variable L est garantie disponible. -->
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/leaflet.markercluster/leaflet.markercluster.js"></script>
+<script type="module" src="js/app.js"></script>
+
+</body>
+</html>

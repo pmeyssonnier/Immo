@@ -1,0 +1,31 @@
+# Verifications automatiques a chaque modification du code.
+# Aucune installation, aucun acces internet : tout tourne sur des donnees de test
+# rangees dans le depot.
+
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Nettoyage des données DVF (pièges du format, contours, chaîne complète)
+        run: python -m unittest discover tests -v
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Algorithme d'estimation
+        run: node --test tests/test_estimation.mjs

@@ -1,0 +1,70 @@
+# Robot de mise a jour des donnees.
+#
+# Il tourne sur les serveurs de GitHub (qui ont acces a internet), telecharge les
+# ventes publiees par l'Etat, fabrique les fichiers du dossier data/ et les
+# enregistre dans le depot. Le site se met alors a jour tout seul.
+#
+# Pour le lancer a la main : onglet "Actions" > "Mise a jour des donnees DVF"
+# > bouton "Run workflow".
+
+name: Mise à jour des données DVF
+
+on:
+  schedule:
+    # le 5 de chaque mois a 3 h (heure universelle). Les donnees officielles ne
+    # sortent que deux fois par an, mais verifier tous les mois ne coute rien.
+    - cron: "0 3 5 * *"
+  workflow_dispatch:
+    inputs:
+      annees:
+        description: "Nombre d'années d'historique à récupérer"
+        default: "5"
+        required: false
+
+permissions:
+  contents: write        # indispensable pour réenregistrer le dossier data/
+
+concurrency:
+  group: donnees-dvf
+  cancel-in-progress: false
+
+jobs:
+  construire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Télécharger et préparer les données
+        run: python scripts/preparer_donnees.py --annees "${{ inputs.annees || '5' }}" --sortie data
+
+      - name: Afficher le rapport
+        if: always()
+        run: |
+          echo '## Rapport de préparation' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat data/_rapport.txt >> "$GITHUB_STEP_SUMMARY" || echo "(aucun rapport)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Contrôles de cohérence
+        # Mieux vaut faire échouer le robot que publier des chiffres absurdes.
+        run: python scripts/preparer_donnees.py --verifier data
+
+      - name: Vérifier que le site sert bien ces données
+        run: python -m unittest tests.test_site -v
+
+      - name: Enregistrer les nouvelles données
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --staged --quiet; then
+            echo "Aucun changement : les données étaient déjà à jour."
+          else
+            git commit -m "Données DVF mises à jour ($(date +%F))"
+            git push
+          fi

@@ -1,0 +1,275 @@
+/* ------------------------------------------------------------------------
+   Feuille de style unique. Aucun framework : tout est ici, en clair.
+   ------------------------------------------------------------------------ */
+
+:root {
+  --encre: #1c2430;
+  --encre-douce: #5b6875;
+  --fond: #f4f5f7;
+  --carte-fond: #ffffff;
+  --bordure: #dfe3e8;
+  --accent: #1f4e79;
+  --accent-clair: #e8f0f8;
+  --vert: #1a7f4b;
+  --orange: #b26a00;
+  --rouge: #b3261e;
+  --rayon: 8px;
+  --ombre: 0 1px 3px rgba(16, 24, 40, .08), 0 1px 2px rgba(16, 24, 40, .06);
+  --entete-hauteur: 62px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; height: 100%;
+  font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px; color: var(--encre); background: var(--fond);
+}
+
+body { display: flex; flex-direction: column; }
+
+a { color: var(--accent); }
+
+/* --- Entete ------------------------------------------------------------ */
+.entete {
+  display: flex; align-items: center; gap: 20px;
+  padding: 10px 20px; background: var(--carte-fond);
+  border-bottom: 1px solid var(--bordure); box-shadow: var(--ombre); z-index: 1000;
+}
+.entete h1 { margin: 0; font-size: 20px; letter-spacing: -.2px; }
+.entete h1 span { color: var(--accent); font-weight: 500; }
+.entete .sous-titre { margin: 2px 0 0; font-size: 12.5px; color: var(--encre-douce); }
+
+.bandeau-demo {
+  padding: 9px 20px; background: #fff4e5; color: #7a4b00;
+  border-bottom: 1px solid #f0d9b5; font-size: 13px;
+}
+
+.chargement { padding: 60px; text-align: center; color: var(--encre-douce); }
+
+.erreur-fatale {
+  max-width: 640px; margin: 0 auto; text-align: left; background: var(--carte-fond);
+  border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 24px;
+  box-shadow: var(--ombre); color: var(--encre);
+}
+.erreur-fatale h2 { margin-top: 0; font-size: 18px; color: var(--rouge); }
+.erreur-fatale code {
+  background: var(--fond); padding: 2px 5px; border-radius: 4px; font-size: 13px;
+}
+
+/* --- Disposition generale ---------------------------------------------- */
+.application { flex: 1; display: flex; min-height: 0; }
+
+.panneau-gauche {
+  width: 320px; flex: none; display: flex; flex-direction: column;
+  background: var(--carte-fond); border-right: 1px solid var(--bordure);
+}
+.zone-carte { flex: 1; position: relative; min-width: 0; }
+#carte { position: absolute; inset: 0; background: #eef1f4; }
+
+.panneau-droit {
+  width: 400px; flex: none; overflow-y: auto; padding: 16px 18px 40px;
+  background: var(--carte-fond); border-left: 1px solid var(--bordure);
+}
+
+/* --- Panneau gauche : recherche et liste -------------------------------- */
+.recherche { padding: 12px; border-bottom: 1px solid var(--bordure); }
+.recherche input {
+  width: 100%; padding: 9px 11px; font-size: 14px;
+  border: 1px solid var(--bordure); border-radius: var(--rayon); background: var(--fond);
+}
+.recherche input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+.compteur {
+  margin: 0; padding: 8px 14px; font-size: 12px; color: var(--encre-douce);
+  border-bottom: 1px solid var(--bordure);
+}
+
+.liste-communes { flex: 1; overflow-y: auto; }
+.liste-communes details { border-bottom: 1px solid var(--bordure); }
+.liste-communes summary {
+  padding: 9px 14px; font-weight: 600; cursor: pointer; font-size: 13.5px;
+  background: var(--fond); position: sticky; top: 0; z-index: 2;
+}
+.liste-communes .badge {
+  float: right; font-weight: 400; color: var(--encre-douce); font-size: 12px;
+}
+.liste-communes ul { list-style: none; margin: 0; padding: 0; }
+.liste-communes li {
+  display: flex; align-items: center; gap: 9px; padding: 7px 14px;
+  cursor: pointer; border-bottom: 1px solid #f2f4f6;
+}
+.liste-communes li:hover { background: var(--accent-clair); }
+.liste-communes li.actif { background: var(--accent-clair); box-shadow: inset 3px 0 0 var(--accent); }
+.liste-communes .pastille {
+  width: 11px; height: 11px; border-radius: 3px; flex: none;
+  border: 1px solid rgba(0, 0, 0, .18);
+}
+.liste-communes .nom { flex: 1; font-size: 13.5px; }
+.liste-communes .stats {
+  text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums;
+}
+.liste-communes .stats em {
+  display: block; font-style: normal; font-size: 11px; color: var(--encre-douce);
+}
+.sans-donnees { color: var(--encre-douce); font-style: italic; font-size: 11.5px; }
+.vide { padding: 20px 14px; color: var(--encre-douce); font-size: 13px; }
+
+/* --- Carte -------------------------------------------------------------- */
+#bandeau-carte {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+  z-index: 900; background: rgba(28, 36, 48, .92); color: #fff;
+  padding: 8px 14px; border-radius: 20px; font-size: 12.5px; max-width: 80%;
+  text-align: center; pointer-events: none;
+}
+
+.legende {
+  background: rgba(255, 255, 255, .95); padding: 9px 11px; border-radius: var(--rayon);
+  box-shadow: var(--ombre); font-size: 11.5px; line-height: 1.7;
+}
+.legende strong { display: block; margin-bottom: 5px; font-size: 12px; }
+.legende .echelle { display: flex; flex-direction: column; }
+.legende span { display: flex; align-items: center; gap: 6px; }
+.legende i {
+  width: 15px; height: 12px; display: inline-block; border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, .15);
+}
+.legende .gris { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--bordure); }
+
+.popup-vente strong { font-size: 16px; }
+.popup-vente .popup-m2 { color: var(--encre-douce); margin-left: 6px; font-size: 12px; }
+.popup-vente dl {
+  display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 8px 0 0;
+  font-size: 12.5px;
+}
+.popup-vente dt { color: var(--encre-douce); }
+.popup-vente dd { margin: 0; }
+
+/* --- Panneau droit : fiche commune et estimation ----------------------- */
+.entete-panneau { display: flex; align-items: flex-start; gap: 10px; }
+.entete-panneau h2 { margin: 0; font-size: 19px; }
+.entete-panneau .sous-titre { margin: 2px 0 0; font-size: 12px; color: var(--encre-douce); }
+#fermer-panneau {
+  margin-left: auto; border: none; background: none; font-size: 24px; line-height: 1;
+  cursor: pointer; color: var(--encre-douce); padding: 0 4px;
+}
+#fermer-panneau:hover { color: var(--encre); }
+
+.stats-commune {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0 0;
+  padding: 12px; background: var(--fond); border-radius: var(--rayon);
+}
+.stats-commune div { min-width: 0; }
+.stats-commune dt { font-size: 11px; color: var(--encre-douce); }
+.stats-commune dd {
+  margin: 1px 0 0; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+
+.panneau-droit h3 {
+  margin: 22px 0 10px; font-size: 14px; text-transform: uppercase;
+  letter-spacing: .4px; color: var(--encre-douce);
+}
+
+.champs { display: flex; gap: 8px; }
+.champs label {
+  flex: 1; font-size: 11.5px; color: var(--encre-douce);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.champs input {
+  padding: 8px; font-size: 14px; border: 1px solid var(--bordure);
+  border-radius: 6px; width: 100%; font-variant-numeric: tabular-nums;
+}
+.case {
+  display: block; margin: 12px 0; font-size: 12.5px; color: var(--encre-douce);
+  line-height: 1.5;
+}
+.case em { font-style: normal; opacity: .8; }
+
+.bouton-principal {
+  width: 100%; padding: 11px; font-size: 15px; font-weight: 600; color: #fff;
+  background: var(--accent); border: none; border-radius: var(--rayon); cursor: pointer;
+}
+.bouton-principal:hover { background: #17395a; }
+.bouton-secondaire {
+  padding: 7px 12px; font-size: 12.5px; background: var(--fond); color: var(--encre);
+  border: 1px solid var(--bordure); border-radius: 6px; cursor: pointer; margin-top: 4px;
+}
+.lien {
+  background: none; border: none; color: var(--accent); cursor: pointer;
+  font-size: 12px; text-decoration: underline; padding: 0;
+}
+
+.chargement { padding: 20px 0; color: var(--encre-douce); font-size: 13px; }
+.erreur { color: var(--rouge); font-size: 13px; }
+
+.resultat { margin-top: 18px; }
+.valeur-principale {
+  margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -.5px;
+  font-variant-numeric: tabular-nums;
+}
+.fourchette { margin: 2px 0 0; font-size: 14px; color: var(--encre-douce); }
+.detail { margin: 4px 0 0; font-size: 12px; color: var(--encre-douce); }
+
+.confiance {
+  margin: 14px 0 0; padding: 9px 11px; border-radius: 6px; font-size: 12.5px;
+  line-height: 1.5; border-left: 4px solid;
+}
+.confiance-bonne { background: #eaf6ef; border-color: var(--vert); }
+.confiance-moyenne { background: #fdf4e3; border-color: var(--orange); }
+.confiance-faible { background: #fdeceb; border-color: var(--rouge); }
+
+.resultat.refus {
+  padding: 14px; background: #fdeceb; border-radius: var(--rayon);
+  border-left: 4px solid var(--rouge);
+}
+.refus-titre { margin: 0 0 6px; font-weight: 600; }
+.resultat.refus p { font-size: 13px; line-height: 1.5; margin: 6px 0 0; }
+
+.details-calcul {
+  margin: 14px 0; padding-left: 18px; font-size: 12.5px; line-height: 1.7;
+  color: var(--encre-douce);
+}
+.details-calcul strong { color: var(--encre); }
+.details-calcul em { font-style: normal; display: block; font-size: 11.5px; opacity: .85; }
+
+.avertissement {
+  margin: 14px 0 0; padding: 10px 11px; background: var(--fond); border-radius: 6px;
+  font-size: 11.5px; line-height: 1.55; color: var(--encre-douce);
+}
+
+.comparables { width: 100%; border-collapse: collapse; font-size: 12px; }
+.comparables th {
+  text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .3px;
+  color: var(--encre-douce); border-bottom: 1px solid var(--bordure); padding: 5px 4px;
+}
+.comparables td {
+  padding: 6px 4px; border-bottom: 1px solid #f2f4f6; vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+.comparables em {
+  display: block; font-style: normal; font-size: 10.5px; color: var(--encre-douce);
+}
+.comparables .voisine { color: var(--orange); }
+.comparables .etoiles { color: #d9a300; letter-spacing: -1px; white-space: nowrap; }
+
+/* --- Ecrans etroits ----------------------------------------------------- */
+@media (max-width: 1100px) {
+  .panneau-gauche { width: 250px; }
+  .panneau-droit { width: 340px; }
+}
+@media (max-width: 860px) {
+  .application { flex-direction: column; }
+  .panneau-gauche { width: 100%; max-height: 200px; border-right: none;
+                    border-bottom: 1px solid var(--bordure); }
+  .zone-carte { min-height: 320px; }
+  .panneau-droit { width: 100%; border-left: none; border-top: 1px solid var(--bordure); }
+}
+
+/* Message persistant quand le fond de plan ne se charge pas (il a son propre
+   emplacement pour ne pas etre efface par les messages de navigation). */
+.avertissement-carte {
+  position: absolute; bottom: 10px; left: 10px; z-index: 900;
+  background: rgba(255, 244, 229, .96); color: #7a4b00;
+  border: 1px solid #f0d9b5; padding: 6px 10px; border-radius: 6px;
+  font-size: 11.5px; max-width: 260px;
+}
