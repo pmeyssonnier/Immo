@@ -327,6 +327,11 @@ class TestChaineComplete(unittest.TestCase):
         # une commune sans assez de ventes n'est pas coloriee
         ales = par_code["30032"]
         self.assertIsNone(ales[6], "commune sans donnees : elle doit rester grise")
+        # ... mais elle garde son NOM, pris dans les contours faute de vente.
+        # Sans cela elle s'afficherait « 30032 » et se classerait avant les
+        # communes dont le nom commence par une lettre.
+        self.assertEqual(ales[1], "Alès",
+                         "une commune sans vente doit quand meme etre nommee")
 
         # les ventes d'une commune sont dans leur propre fichier
         chemin = os.path.join(sortie, "ventes", "30", "30189.json")

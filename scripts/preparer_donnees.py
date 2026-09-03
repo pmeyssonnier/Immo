@@ -1062,6 +1062,22 @@ def main():
         journal("  %d communes, %d ont au moins un voisin"
                 % (len(contours["features"]), len(adjacence)))
 
+        # Les noms de communes viennent d'abord des ventes. Mais une commune ou
+        # aucune vente n'a ete retenue n'y figure pas : sans ce complement, elle
+        # s'affichait avec son code INSEE brut (« 30074 » au lieu de « Sabran »),
+        # et remontait en tete de liste puisque les chiffres se classent avant
+        # les lettres. Le fichier des contours, lui, porte le nom officiel.
+        complements = 0
+        for geojson in geojsons.values():
+            for entite in geojson["features"]:
+                proprietes = entite["properties"]
+                code = proprietes["code"]
+                if code not in noms_communes and proprietes.get("nom"):
+                    noms_communes[code] = proprietes["nom"]
+                    complements += 1
+        if complements:
+            journal("  %d commune(s) sans vente nommee(s) d'apres les contours" % complements)
+
         # ---------------- Etape 3 : ecriture --------------------------------
         journal("Ecriture dans %s ..." % options.sortie)
         meta = construire_sorties(ventes, contours, adjacence, centroides,
