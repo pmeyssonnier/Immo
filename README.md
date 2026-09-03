@@ -94,6 +94,13 @@ que « fiabilité faible », même si ces voisines fournissent des centaines de 
 
 ## 4. Ce que ces chiffres ne savent pas
 
+**L'ajustement selon le terrain est volontairement grossier.** La case est
+décochée par défaut. Le prix du mètre carré de terrain est calculé à l'échelle
+du **département**, jamais de la commune : mesure faite, avec quelques centaines
+de ventes le chiffre varie du simple au décuple selon l'échantillon. Il faut
+plusieurs milliers de ventes pour qu'il se stabilise — ce qu'aucune commune du
+Gard ou de l'Ardèche n'atteint, mais que les départements atteignent largement.
+
 DVF enregistre le prix, l'adresse et les surfaces — **rien d'autre**. Le fichier
 ignore l'état du bien, les travaux, l'exposition, la vue, le DPE, le bruit.
 Une maison rénovée et une passoire thermique de même surface y figurent au même titre.

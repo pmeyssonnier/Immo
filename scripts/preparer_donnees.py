@@ -24,6 +24,7 @@ import io
 import json
 import math
 import os
+import random
 import shutil
 import statistics
 import sys
@@ -85,8 +86,20 @@ BANDES_SURFACE = [(0, 70), (70, 90), (90, 110), (110, 130),
 
 # --- Prix marginal du terrain ----------------------------------------------
 TERRAIN_PLAFOND_REGRESSION = 2500.0
-PRIX_TERRAIN_MIN, PRIX_TERRAIN_MAX = 0.5, 80.0
-MIN_VENTES_REGRESSION_TERRAIN = 15
+# Plage de plausibilite d'un prix de terrain attenant, en EUR/m2. Une valeur qui
+# en sort n'est pas "extreme" : elle signale que la regression n'a rien trouve
+# de fiable dans cette commune. On lui substitue alors la valeur departementale.
+PRIX_TERRAIN_MIN, PRIX_TERRAIN_MAX = 1.0, 70.0
+# Le prix du terrain est calcule au niveau du DEPARTEMENT, jamais par commune.
+# Mesure faite sur des donnees simulees calibrees sur le reel : avec 600 ventes,
+# l'estimation varie de 2 a 23 EUR/m2 selon l'echantillon (ecart-type 6,6) pour
+# une vraie valeur de 25 -- inutilisable. Il faut plusieurs milliers de ventes
+# pour se stabiliser. Aucune commune du Gard ni de l'Ardeche n'en a autant ;
+# les departements, si (30 000 et 15 000). On s'en tient donc a leur valeur, qui
+# se reproduit a +/- 0,5 EUR/m2 d'un tirage a l'autre.
+MIN_VENTES_REGRESSION_TERRAIN = 2000
+MAX_PAIRES_THEIL_SEN = 200000
+PRIX_TERRAIN_SECOURS = 20.0
 
 
 # --------------------------------------------------------------------------
@@ -622,29 +635,64 @@ def calculer_indice_prix(ventes):
             for dep, par_annee in indice.items()}
 
 
-def prix_marginal_terrain(ventes, prix_m2_bati_median):
-    """Regression lineaire simple : combien vaut un m2 de terrain en plus ?
+def points_terrain(ventes, prix_m2_bati_median):
+    """Prepare les couples (surface de terrain, prix restant une fois le bati deduit).
 
-    On retire d'abord la valeur du bati (surface x prix median du m2 bati), puis
-    on regarde comment le reste varie avec la surface de terrain.
+    Le "prix restant" est calcule avec la mediane de LA COMMUNE, jamais celle du
+    departement. C'est essentiel : les communes cheres ont de petites parcelles et
+    les communes rurales de grandes. Deduire le bati avec une mediane
+    departementale melangerait ces deux effets et inverserait la pente -- mesure
+    faite sur les donnees reelles, cela donnait 0,5 EUR/m2 pour le Gard, soit la
+    valeur plancher, alors que la bonne reponse est autour de 22.
     """
     points = []
     for vente in ventes:
         if vente["sterr"] <= 0:
             continue
         x = min(float(vente["sterr"]), TERRAIN_PLAFOND_REGRESSION)
-        y = vente["prix"] - prix_m2_bati_median * vente["sbati"]
-        points.append((x, y))
-    if len(points) < MIN_VENTES_REGRESSION_TERRAIN:
+        points.append((x, vente["prix"] - prix_m2_bati_median * vente["sbati"]))
+    return points
+
+
+def pente_theil_sen(points, alea):
+    """Combien vaut un m2 de terrain en plus ? Renvoie None si ce n'est pas fiable.
+
+    On prend la MEDIANE des pentes calculees deux a deux (estimateur de
+    Theil-Sen), et non la moyenne des moindres carres. Raison mesuree sur le Gard
+    et l'Ardeche reels : le prix d'une maison depend surtout de son etat, de ses
+    travaux et de sa vue -- que DVF ne connait pas. Ce bruit est enorme devant
+    l'effet du terrain et fait deraper une regression classique (38 % de pentes
+    absurdes, contre 27 % avec Theil-Sen). Il faut en plus beaucoup de ventes :
+    a 80 ventes l'estimation est deja tiree vers zero, a 300 elle tient meme sous
+    un bruit de 80 000 EUR.
+    """
+    n = len(points)
+    if n < MIN_VENTES_REGRESSION_TERRAIN:
         return None
-    moyenne_x = sum(p[0] for p in points) / len(points)
-    moyenne_y = sum(p[1] for p in points) / len(points)
-    numerateur = sum((x - moyenne_x) * (y - moyenne_y) for x, y in points)
-    denominateur = sum((x - moyenne_x) ** 2 for x, _ in points)
-    if denominateur <= 0:
+
+    pentes = []
+    if n * (n - 1) // 2 <= MAX_PAIRES_THEIL_SEN:
+        for i in range(n):
+            for j in range(i + 1, n):
+                if points[j][0] != points[i][0]:
+                    pentes.append((points[j][1] - points[i][1])
+                                  / (points[j][0] - points[i][0]))
+    else:
+        # Trop de paires pour les prendre toutes : on en tire un echantillon.
+        # La graine est fixee par l'appelant, donc le resultat est reproductible.
+        for _ in range(MAX_PAIRES_THEIL_SEN):
+            i, j = alea.randrange(n), alea.randrange(n)
+            if i != j and points[j][0] != points[i][0]:
+                pentes.append((points[j][1] - points[i][1])
+                              / (points[j][0] - points[i][0]))
+    if not pentes:
         return None
-    pente = numerateur / denominateur
-    return round(max(PRIX_TERRAIN_MIN, min(PRIX_TERRAIN_MAX, pente)), 1)
+
+    pente = statistics.median(pentes)
+    # Hors de la plage plausible, on considere que rien de fiable n'a ete trouve.
+    if not (PRIX_TERRAIN_MIN <= pente <= PRIX_TERRAIN_MAX):
+        return None
+    return round(pente, 1)
 
 
 def calculer_bandes(ventes):
@@ -694,13 +742,29 @@ def construire_sorties(ventes, contours, adjacence, centroides, noms_communes,
 
     t_reference = max((v["t"] for v in ventes), default=0)
 
-    lignes_communes, prix_terrain_dep = [], {}
-    for dep in DEPARTEMENTS:
-        ventes_dep = [v for v in ventes if v["dep"] == dep]
-        if ventes_dep:
-            median_dep = mediane([v["prix_m2"] for v in ventes_dep])
-            prix_terrain_dep[dep] = prix_marginal_terrain(ventes_dep, median_dep) or 15.0
+    # Prix du terrain : on calcule d'abord commune par commune, puis la valeur
+    # departementale est la MEDIANE de ces resultats communaux.
+    # Surtout pas une regression sur le departement entier : les communes cheres
+    # ont de petites parcelles et les communes rurales de grandes, ce qui inverse
+    # artificiellement la pente. Mesure faite : cette approche donnait 0,5 EUR/m2
+    # pour le Gard (valeur plancher, absurde) la ou la mediane communale donne 28.
+    alea = random.Random(20260101)
+    points_par_dep = defaultdict(list)
+    for code, liste in par_commune.items():
+        if len(liste) < MIN_VENTES_AFFICHAGE:
+            continue
+        points_par_dep[liste[0]["dep"]].extend(
+            points_terrain(liste, mediane([v["prix_m2"] for v in liste])))
 
+    prix_terrain_dep = {}
+    for dep in DEPARTEMENTS:
+        prix_terrain_dep[dep] = pente_theil_sen(points_par_dep[dep], alea) \
+            or PRIX_TERRAIN_SECOURS
+    journal("  prix du terrain (valeur departementale) : " + ", ".join(
+        "%s = %.1f EUR/m2 sur %d ventes avec terrain"
+        % (dep, prix_terrain_dep[dep], len(points_par_dep[dep])) for dep in DEPARTEMENTS))
+
+    lignes_communes = []
     for code in tous_codes:
         liste = par_commune.get(code, [])
         dep = code[:2] if code[:2] in DEPARTEMENTS else (liste[0]["dep"] if liste else "30")
@@ -716,10 +780,12 @@ def construire_sorties(ventes, contours, adjacence, centroides, noms_communes,
             surf_med = round(mediane([v["sbati"] for v in liste]))
             terr_med = round(mediane([v["sterr"] for v in liste]))
             prix_med = round(mediane([v["prix"] for v in liste]))
-            terrain = prix_marginal_terrain(liste, m2_med) or prix_terrain_dep.get(dep, 15.0)
         else:
             m2_med = m2_q1 = m2_q3 = surf_med = terr_med = prix_med = None
-            terrain = prix_terrain_dep.get(dep, 15.0)
+        # Valeur du departement : une commune n'a jamais assez de ventes pour
+        # que son propre prix du terrain soit credible (voir le commentaire de
+        # MIN_VENTES_REGRESSION_TERRAIN).
+        terrain = prix_terrain_dep.get(dep, PRIX_TERRAIN_SECOURS)
 
         lignes_communes.append([code, nom, dep, lat, lon, n, m2_med, m2_q1, m2_q3,
                                 surf_med, terr_med, prix_med, terrain])

@@ -8,6 +8,7 @@ Chaque test correspond a un piege reel du fichier DVF. Lancer avec :
 import csv
 import json
 import os
+import random
 import sys
 import tempfile
 import unittest
@@ -145,6 +146,81 @@ class TestAberrations(unittest.TestCase):
         med_b, sigma_b = prep.seuil_mad(normal + [99.0])
         self.assertAlmostEqual(med_a, med_b, places=1)
         self.assertLess(sigma_b, 1.0, "l'ecart-type classique aurait explose")
+
+
+class TestPrixDuTerrain(unittest.TestCase):
+    """Le prix du terrain doit resister au bruit enorme des donnees reelles.
+
+    DVF ignore l'etat du bien : deux maisons identiques peuvent differer de
+    100 000 EUR. Ce bruit ecrase le signal du terrain et faisait deraper une
+    regression classique. D'ou Theil-Sen, et un seuil eleve de ventes.
+    """
+
+    @staticmethod
+    def points(pente_reelle, n=400, bruit=0, aberrantes=0, graine=7):
+        alea = random.Random(graine)
+        points = []
+        for i in range(n):
+            terrain = 100 + (i * 1900) // n
+            reste = pente_reelle * terrain + (alea.gauss(0, bruit) if bruit else 0)
+            points.append((float(terrain), reste))
+        for i in range(aberrantes):
+            points.append((200.0 + i, 700000.0))
+        return points
+
+    def test_deduction_du_bati_avec_la_mediane_de_la_commune(self):
+        ventes = [{"sterr": 500, "sbati": 100, "prix": 250000},
+                  {"sterr": 0, "sbati": 90, "prix": 200000}]   # sans terrain : ignoree
+        points = prep.points_terrain(ventes, 2000)
+        self.assertEqual(len(points), 1)
+        self.assertEqual(points[0], (500.0, 250000 - 2000 * 100))
+
+    def test_terrain_plafonne(self):
+        points = prep.points_terrain([{"sterr": 99999, "sbati": 100, "prix": 300000}], 2000)
+        self.assertEqual(points[0][0], prep.TERRAIN_PLAFOND_REGRESSION)
+
+    def test_retrouve_la_pente_sur_des_donnees_propres(self):
+        self.assertAlmostEqual(
+            prep.pente_theil_sen(self.points(25, n=3000), random.Random(1)), 25.0, places=0)
+
+    def test_resiste_au_bruit_et_aux_aberrations_a_l_echelle_d_un_departement(self):
+        """Le cas reel : gros bruit de qualite + quelques ventes hors norme."""
+        pente = prep.pente_theil_sen(
+            self.points(25, n=30000, bruit=60000, aberrantes=150), random.Random(1))
+        self.assertIsNotNone(pente)
+        self.assertTrue(20 <= pente <= 30,
+                        "pente %s : l'estimateur n'a pas resiste au bruit" % pente)
+
+    def test_stable_d_un_echantillon_a_l_autre(self):
+        """C'est CE resultat qui justifie de ne calculer qu'au niveau departemental."""
+        pentes = [prep.pente_theil_sen(
+            self.points(25, n=20000, bruit=60000, graine=g), random.Random(1))
+            for g in range(4)]
+        self.assertLess(max(pentes) - min(pentes), 2.0,
+                        "dispersion trop forte entre echantillons : %s" % pentes)
+
+    def test_refuse_de_repondre_faute_de_ventes(self):
+        """Une commune (quelques centaines de ventes) n'atteint jamais le seuil."""
+        self.assertIsNone(prep.pente_theil_sen(self.points(25, n=5), random.Random(1)))
+        self.assertIsNone(prep.pente_theil_sen(self.points(25, n=600), random.Random(1)),
+                          "600 ventes : trop peu pour un chiffre credible")
+
+    def test_une_pente_implausible_est_ecartee(self):
+        """Mieux vaut ne rien dire que d'annoncer 0,5 ou 500 EUR/m2."""
+        for pente_absurde in (-40, 0.2, 400):
+            self.assertIsNone(
+                prep.pente_theil_sen(self.points(pente_absurde, n=3000), random.Random(1)),
+                "pente %s aurait du etre rejetee" % pente_absurde)
+
+    def test_resultat_reproductible(self):
+        """Graine fixe : deux executions doivent donner le meme chiffre."""
+        points = self.points(25, n=12000, bruit=40000)
+        self.assertEqual(prep.pente_theil_sen(points, random.Random(20260101)),
+                         prep.pente_theil_sen(points, random.Random(20260101)))
+
+    def test_le_seuil_reste_hors_de_portee_d_une_commune(self):
+        """Garde-fou : ce seuil eleve est ce qui empeche un chiffre communal faux."""
+        self.assertGreaterEqual(prep.MIN_VENTES_REGRESSION_TERRAIN, 2000)
 
 
 class TestContours(unittest.TestCase):
