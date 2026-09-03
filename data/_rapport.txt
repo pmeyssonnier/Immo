@@ -1,31 +1,85 @@
 Recherche des millesimes DVF disponibles...
 Millesimes retenus : 2021, 2022, 2023, 2024, 2025
-  telechargement 30 2021
+  telechargement 04 2021
+  telechargement 05 2021
+  telechargement 06 2021
   telechargement 07 2021
-  telechargement 30 2022
+  telechargement 11 2021
+  telechargement 13 2021
+  telechargement 26 2021
+  telechargement 30 2021
+  telechargement 34 2021
+  telechargement 83 2021
+  telechargement 84 2021
+  telechargement 04 2022
+  telechargement 05 2022
+  telechargement 06 2022
   telechargement 07 2022
-  telechargement 30 2023
+  telechargement 11 2022
+  telechargement 13 2022
+  telechargement 26 2022
+  telechargement 30 2022
+  telechargement 34 2022
+  telechargement 83 2022
+  telechargement 84 2022
+  telechargement 04 2023
+  telechargement 05 2023
+  telechargement 06 2023
   telechargement 07 2023
-  telechargement 30 2024
+  telechargement 11 2023
+  telechargement 13 2023
+  telechargement 26 2023
+  telechargement 30 2023
+  telechargement 34 2023
+  telechargement 83 2023
+  telechargement 84 2023
+  telechargement 04 2024
+  telechargement 05 2024
+  telechargement 06 2024
   telechargement 07 2024
-  telechargement 30 2025
+  telechargement 11 2024
+  telechargement 13 2024
+  telechargement 26 2024
+  telechargement 30 2024
+  telechargement 34 2024
+  telechargement 83 2024
+  telechargement 84 2024
+  telechargement 04 2025
+  telechargement 05 2025
+  telechargement 06 2025
   telechargement 07 2025
-Mutations contenant une maison : 54508
-  rejet R1_pas_une_vente            267
-  rejet R2_vente_mixte             1966
-  rejet R3_plusieurs_maisons        777
-  rejet R4_lots_copropriete         671
-  rejet R5_plusieurs_communes       248
-  rejet R6_sans_coordonnees         643
-  rejet R7_champs_manquants          14
-  rejet B_bornes_implausibles       832
+  telechargement 11 2025
+  telechargement 13 2025
+  telechargement 26 2025
+  telechargement 30 2025
+  telechargement 34 2025
+  telechargement 83 2025
+  telechargement 84 2025
+Mutations contenant une maison : 321783
+  rejet R1_pas_une_vente           1992
+  rejet R2_vente_mixte            10882
+  rejet R3_plusieurs_maisons       3338
+  rejet R4_lots_copropriete        4170
+  rejet R5_plusieurs_communes       793
+  rejet R6_sans_coordonnees        4435
+  rejet R7_champs_manquants         154
+  rejet B_bornes_implausibles      3285
   valeur_fonciere incoherente entre lignes : 0  (doit rester 0)
-Aberrations retirees (MAD) : 1423 sur 49090 (2.9 %)
-Ventes retenues : 47667
+Aberrations retirees (MAD) : 9216 sur 292734 (3.1 %)
+Ventes retenues : 283518
 Contours des communes...
-  contours : 44420 sommets -> 24195 (46 % retires)
-  692 communes, 692 ont au moins un voisin
+  contours : 189103 sommets -> 66831 (65 % retires)
+  2785 communes, 2785 ont au moins un voisin
 Ecriture dans data ...
-  prix du terrain (valeur departementale) : 30 = 22.7 EUR/m2 sur 30956 ventes avec terrain, 07 = 17.2 EUR/m2 sur 14896 ventes avec terrain
-  Gard      32329 ventes, mediane 2380 EUR/m2
-  Ardèche   15338 ventes, mediane 1881 EUR/m2
+  prix du terrain (valeur departementale) : 04 = 25.0 EUR/m2 sur 7614 ventes avec terrain, 05 = 23.2 EUR/m2 sur 4430 ventes avec terrain, 06 = 20.0 EUR/m2 sur 17031 ventes avec terrain, 07 = 17.3 EUR/m2 sur 14936 ventes avec terrain, 11 = 44.3 EUR/m2 sur 23776 ventes avec terrain, 13 = 19.0 EUR/m2 sur 37336 ventes avec terrain, 26 = 10.4 EUR/m2 sur 18986 ventes avec terrain, 30 = 22.3 EUR/m2 sur 31041 ventes avec terrain, 34 = 47.9 EUR/m2 sur 42326 ventes avec terrain, 83 = 20.0 EUR/m2 sur 40945 ventes avec terrain, 84 = 24.6 EUR/m2 sur 21932 ventes avec terrain
+  Alpes-de-Haute-Provence    8002 ventes, mediane  2273 EUR/m2
+  Hautes-Alpes          4828 ventes, mediane  2548 EUR/m2
+  Alpes-Maritimes      19672 ventes, mediane  4147 EUR/m2
+  Ardèche              15378 ventes, mediane  1879 EUR/m2
+  Aude                 26814 ventes, mediane  1673 EUR/m2
+  Bouches-du-Rhône     41406 ventes, mediane  3926 EUR/m2
+  Drôme                20207 ventes, mediane  2222 EUR/m2
+  Gard                 32420 ventes, mediane  2381 EUR/m2
+  Hérault              46492 ventes, mediane  2824 EUR/m2
+  Var                  44962 ventes, mediane  3371 EUR/m2
+  Vaucluse             23337 ventes, mediane  2627 EUR/m2
