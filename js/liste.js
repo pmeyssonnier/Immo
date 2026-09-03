@@ -99,8 +99,21 @@ export function rendre(etat) {
     const ouvert = Boolean(recherche) || dep === depDeLaSelection
       || departementsOuverts.has(dep);
 
+    // Le prix median du departement est deja calcule par le robot : on
+    // l'affiche sur la ligne du groupe, pour qu'il se lise sans rien deplier.
+    const infosDep = (etat.meta.departements || {})[dep];
+    const medianeDep = infosDep ? infosDep.prix_m2_median : null;
+    const ventesDep = infosDep ? infosDep.nb_ventes : 0;
+
     morceaux.push(`<details data-dep="${dep}"${ouvert ? " open" : ""}>
-      <summary>${nomDep} <span class="badge">${liste.length}</span></summary>
+      <summary>
+        <span class="pastille" style="background:${couleurPrix(medianeDep, seuils)}"></span>
+        <span class="nom-dep" title="${nomDep} — ${liste.length} communes">${nomDep}</span>
+        <span class="stats-dep">
+          <strong>${medianeDep === null ? "—" : eurosParM2(medianeDep)}</strong>
+          <em>${nombre(ventesDep)} vente${ventesDep > 1 ? "s" : ""}</em>
+        </span>
+      </summary>
       <ul>`);
     for (const commune of liste) {
       const actif = commune.code === etat.communeSelectionnee ? " class=\"actif\"" : "";

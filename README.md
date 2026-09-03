@@ -6,9 +6,10 @@ Un site web qui montre **les vraies ventes de maisons** enregistrées dans
 
 Alpes-de-Haute-Provence (04), Hautes-Alpes (05), Alpes-Maritimes (06), Ardèche (07), Ariège (09), Aude (11), Bouches-du-Rhône (13), Drôme (26), Gard (30), Haute-Garonne (31), Hérault (34), Pyrénées-Orientales (66), Var (83), Vaucluse (84)
 
-- À gauche : les 3 929 communes, groupées par département. Les groupes sont
-  **repliés** au démarrage — cliquez sur un département pour le déplier. La
-  recherche, elle, fouille les 14 départements d'un coup.
+- À gauche : les 14 départements, chacun avec son **prix médian au m²** et son
+  nombre de ventes — la vue d'ensemble du marché, lisible sans rien déplier.
+  Cliquez sur un département pour voir ses communes ; la recherche, elle,
+  fouille les 3 945 communes d'un coup.
 - Au milieu : une carte. De loin, les communes sont **coloriées** selon leur prix au m².
   En zoomant (ou en cliquant une commune), les **ventes apparaissent une par une**.
 - À droite : la fiche de la commune et l'**estimateur**.

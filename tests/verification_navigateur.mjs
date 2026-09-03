@@ -78,8 +78,30 @@ verifier(dureeAffichage < 400,
   `réaffichage de la liste filtrée en ${dureeAffichage.toFixed(0)} ms`);
 await page.fill("#champ-recherche", "");
 await page.waitForTimeout(200);
-const totalAnnonce = await page.evaluate(() => [...document.querySelectorAll(
-  "#liste-communes .badge")].reduce((s, b) => s + Number(b.textContent), 0));
+// Les lignes de communes sont dans le DOM même quand leur groupe est replié :
+// on peut donc les compter sans rien déplier.
+const totalAnnonce = await page.locator("#liste-communes li").count();
+// Chaque département doit afficher son prix médian sans qu'on ait rien à
+// déplier : c'est la vue d'ensemble du marché.
+const lignesDep = await page.locator("#liste-communes summary").allInnerTexts();
+const sansPrix = lignesDep.filter((l) => !/\d[\d\u202f\u00a0 ]*€\/m²/.test(l));
+verifier(sansPrix.length === 0, sansPrix.length
+  ? `départements sans prix médian : ${sansPrix.map((l) => l.split("\n")[0]).join(", ")}`
+  : `les ${lignesDep.length} départements affichent leur prix médian au m²`);
+// et ce prix doit être celui du fichier de données, pas un chiffre recalculé
+const coherent = await page.evaluate(async () => {
+  const meta = await (await fetch("data/meta.json")).json();
+  const affiches = [...document.querySelectorAll("#liste-communes details")].map((d) => ({
+    dep: d.dataset.dep,
+    prix: Number(d.querySelector(".stats-dep strong").textContent.replace(/[^\d]/g, "")),
+  }));
+  return affiches.filter((a) => meta.departements[a.dep]
+    && meta.departements[a.dep].prix_m2_median !== a.prix);
+});
+verifier(coherent.length === 0, coherent.length
+  ? `prix affiché ≠ donnée : ${JSON.stringify(coherent)}`
+  : "chaque prix affiché correspond exactement à la donnée publiée");
+
 const communesDansLesDonnees = await page.evaluate(async () => {
   const t = await (await fetch("data/communes.json")).json();
   return t.valeurs.length;
