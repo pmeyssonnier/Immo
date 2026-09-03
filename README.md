@@ -41,6 +41,10 @@ années, les nettoie et les range. Le site se met à jour tout seul juste après
 
 Ensuite, le robot repasse tout seul **le 5 de chaque mois**. Vous n'avez plus rien à faire.
 
+> **Autre moyen de le relancer**, si le bouton n'est pas accessible : modifiez le
+> fichier `.github/declencher-donnees.txt` (écrivez-y la date du jour, puis
+> `Commit changes`). Toute modification de ce fichier réveille le robot.
+
 ---
 
 ## 2. Comment s'en servir

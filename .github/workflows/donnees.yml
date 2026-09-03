@@ -4,8 +4,11 @@
 # ventes publiees par l'Etat, fabrique les fichiers du dossier data/ et les
 # enregistre dans le depot. Le site se met alors a jour tout seul.
 #
-# Pour le lancer a la main : onglet "Actions" > "Mise a jour des donnees DVF"
-# > bouton "Run workflow".
+# Trois facons de le lancer :
+#   1. tout seul, le 5 de chaque mois ;
+#   2. a la main : onglet "Actions" > "Mise a jour des donnees DVF" > "Run workflow" ;
+#   3. en modifiant le fichier .github/declencher-donnees.txt (y ecrire la date
+#      du jour suffit). Pratique quand on n'a pas acces au bouton.
 
 name: Mise à jour des données DVF
 
@@ -20,6 +23,13 @@ on:
         description: "Nombre d'années d'historique à récupérer"
         default: "5"
         required: false
+  push:
+    branches: [main]
+    paths:
+      # Écrire n'importe quoi dans ce fichier relance le robot.
+      - ".github/declencher-donnees.txt"
+      # Si la logique de nettoyage change, les données doivent être refaites.
+      - "scripts/preparer_donnees.py"
 
 permissions:
   contents: write        # indispensable pour réenregistrer le dossier data/
