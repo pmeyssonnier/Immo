@@ -47,11 +47,14 @@ NIVEAU_PRIX = {
     "05": 7.80,   # Hautes-Alpes
     "06": 8.55,   # Alpes-Maritimes : environ 5 200 EUR/m2
     "07": 7.45,   # Ardeche
+    "09": 7.25,   # Ariege
     "11": 7.40,   # Aude
     "13": 8.30,   # Bouches-du-Rhone
     "26": 7.65,   # Drome
     "30": 7.75,   # Gard
+    "31": 7.85,   # Haute-Garonne
     "34": 7.95,   # Herault
+    "66": 7.70,   # Pyrenees-Orientales
     "83": 8.25,   # Var
     "84": 7.90,   # Vaucluse
 }
