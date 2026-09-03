@@ -1,0 +1,30 @@
+Recherche des millesimes DVF disponibles...
+Millesimes retenus : 2021, 2022, 2023, 2024, 2025
+  telechargement 30 2021
+  telechargement 07 2021
+  telechargement 30 2022
+  telechargement 07 2022
+  telechargement 30 2023
+  telechargement 07 2023
+  telechargement 30 2024
+  telechargement 07 2024
+  telechargement 30 2025
+  telechargement 07 2025
+Mutations contenant une maison : 54508
+  rejet R1_pas_une_vente            267
+  rejet R2_vente_mixte             1966
+  rejet R3_plusieurs_maisons        777
+  rejet R4_lots_copropriete         671
+  rejet R5_plusieurs_communes       248
+  rejet R6_sans_coordonnees         643
+  rejet R7_champs_manquants          14
+  rejet B_bornes_implausibles       832
+  valeur_fonciere incoherente entre lignes : 0  (doit rester 0)
+Aberrations retirees (MAD) : 1423 sur 49090 (2.9 %)
+Ventes retenues : 47667
+Contours des communes...
+  contours : 44420 sommets -> 24195 (46 % retires)
+  692 communes, 692 ont au moins un voisin
+Ecriture dans data ...
+  Gard      32329 ventes, mediane 2380 EUR/m2
+  Ardèche   15338 ventes, mediane 1881 EUR/m2
