@@ -259,3 +259,13 @@ test("avec assez de ventes locales, l'elargissement donne bien 'moyenne'", () =>
   const resultat = estimer(entree(ventes, { palier: 1 }));
   assert.equal(resultat.confiance, "moyenne");
 });
+
+test("aucun ajustement terrain quand le département ne permet pas de le mesurer", () => {
+  // Cas réel : Alpes-Maritimes et Var, où la pente mesurée est négative. Le
+  // fichier de données porte alors prix_terrain = null.
+  const ventes = ventesFictives(30, { sterr: 500 });
+  const sans = estimer(entree(ventes, { terrain: 500, ajusterTerrain: false, prixTerrain: null }));
+  const avec = estimer(entree(ventes, { terrain: 5000, ajusterTerrain: true, prixTerrain: null }));
+  assert.equal(avec.ajustementTerrain, 0, "aucun ajustement ne doit être appliqué");
+  assert.equal(avec.valeur, sans.valeur, "la valeur doit être identique");
+});

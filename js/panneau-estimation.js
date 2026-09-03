@@ -247,10 +247,15 @@ export function rendre(etat) {
                  placeholder="5" value="${anciennes.pieces ?? ""}">
         </label>
       </div>
+      ${commune.prix_terrain === null ? `
+      <p class="case sans-donnees">Dans ce département, la taille du terrain
+        n'explique pas le prix : les grands terrains y sont dans l'arrière-pays,
+        moins cher, tandis que la prime va au littoral sur de petites parcelles.
+        Aucun ajustement terrain n'est donc proposé ici.</p>` : `
       <label class="case"><input type="checkbox" id="ajuster-terrain"
         ${anciennes.ajusterTerrain ? "checked" : ""}>
         Ajuster selon la taille du terrain <em>(indicatif — le terrain est déjà
-        partiellement pris en compte)</em></label>
+        partiellement pris en compte)</em></label>`}
       <button type="submit" class="bouton-principal">Estimer</button>
     </form>
     <div id="resultat-estimation">${blocResultat(etat)}</div>

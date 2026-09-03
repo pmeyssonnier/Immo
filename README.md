@@ -116,8 +116,16 @@ que « fiabilité faible », même si ces voisines fournissent des centaines de 
 décochée par défaut. Le prix du mètre carré de terrain est calculé à l'échelle
 du **département**, jamais de la commune : mesure faite, avec quelques centaines
 de ventes le chiffre varie du simple au décuple selon l'échantillon. Il faut
-plusieurs milliers de ventes pour qu'il se stabilise — ce qu'aucune commune du
+plusieurs milliers de ventes pour qu'il se stabilise — ce qu'aucune commune
 n'atteint, mais que les départements atteignent largement.
+
+**Et dans certains départements, la case n'apparaît pas du tout.** Dans les
+Alpes-Maritimes et le Var, la mesure donne une valeur *négative* (−5 et
+−16 €/m², de façon stable). Ce n'est pas une erreur : une fois la valeur du bâti
+retirée, les grands terrains y sont dans l'arrière-pays, moins cher, tandis que
+la prime va au littoral sur de petites parcelles. La surface de terrain n'y
+explique donc pas le prix, et l'application préfère ne rien proposer plutôt
+qu'avancer un chiffre inventé.
 
 DVF enregistre le prix, l'adresse et les surfaces — **rien d'autre**. Le fichier
 ignore l'état du bien, les travaux, l'exposition, la vue, le DPE, le bruit.

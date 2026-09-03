@@ -123,7 +123,6 @@ PRIX_TERRAIN_MIN, PRIX_TERRAIN_MAX = 1.0, 70.0
 # se reproduit a +/- 0,5 EUR/m2 d'un tirage a l'autre.
 MIN_VENTES_REGRESSION_TERRAIN = 2000
 MAX_PAIRES_THEIL_SEN = 200000
-PRIX_TERRAIN_SECOURS = 20.0
 
 
 # --------------------------------------------------------------------------
@@ -784,13 +783,22 @@ def construire_sorties(ventes, contours, adjacence, centroides, noms_communes,
         points_par_dep[liste[0]["dep"]].extend(
             points_terrain(liste, mediane([v["prix_m2"] for v in liste])))
 
-    prix_terrain_dep = {}
-    for dep in DEPARTEMENTS:
-        prix_terrain_dep[dep] = pente_theil_sen(points_par_dep[dep], alea) \
-            or PRIX_TERRAIN_SECOURS
+    # Le resultat peut etre None, et c'est une reponse legitime : dans les
+    # Alpes-Maritimes et le Var, la pente mesuree est NEGATIVE (-5 et -16 EUR/m2,
+    # stable d'un tirage a l'autre). Ce n'est pas une erreur de calcul mais la
+    # realite de ces marches : une fois la valeur du bati retiree, les grands
+    # terrains sont dans l'arriere-pays, moins cher, tandis que la prime est au
+    # bord de mer sur de petites parcelles. La surface de terrain n'y explique
+    # donc pas le prix. Plutot que de lui substituer un chiffre invente, on
+    # laisse None : le site n'y proposera simplement pas l'ajustement terrain.
+    prix_terrain_dep = {dep: pente_theil_sen(points_par_dep[dep], alea)
+                        for dep in DEPARTEMENTS}
     journal("  prix du terrain (valeur departementale) : " + ", ".join(
-        "%s = %.1f EUR/m2 sur %d ventes avec terrain"
-        % (dep, prix_terrain_dep[dep], len(points_par_dep[dep])) for dep in DEPARTEMENTS))
+        "%s = %s sur %d ventes avec terrain"
+        % (dep,
+           ("%.1f EUR/m2" % prix_terrain_dep[dep]) if prix_terrain_dep[dep] is not None
+           else "non mesurable (aucun ajustement propose)",
+           len(points_par_dep[dep])) for dep in DEPARTEMENTS))
 
     lignes_communes = []
     for code in tous_codes:
@@ -810,10 +818,9 @@ def construire_sorties(ventes, contours, adjacence, centroides, noms_communes,
             prix_med = round(mediane([v["prix"] for v in liste]))
         else:
             m2_med = m2_q1 = m2_q3 = surf_med = terr_med = prix_med = None
-        # Valeur du departement : une commune n'a jamais assez de ventes pour
-        # que son propre prix du terrain soit credible (voir le commentaire de
-        # MIN_VENTES_REGRESSION_TERRAIN).
-        terrain = prix_terrain_dep.get(dep, PRIX_TERRAIN_SECOURS)
+        # Valeur du departement, ou None si le terrain n'y explique pas le prix
+        # (voir le commentaire au calcul de prix_terrain_dep).
+        terrain = prix_terrain_dep.get(dep)
 
         lignes_communes.append([code, nom, dep, lat, lon, n, m2_med, m2_q1, m2_q3,
                                 surf_med, terr_med, prix_med, terrain])

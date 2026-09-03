@@ -256,8 +256,11 @@ export function estimer(entree) {
 
   // Ajustement terrain optionnel (decoche par defaut dans l'interface, car la
   // ponderation w_terrain corrige deja une partie de l'ecart).
+  // prixTerrain vaut null quand le departement ne permet aucune mesure fiable :
+  // dans ce cas on n'ajuste pas, meme si la case a ete cochee.
   let ajustement = 0;
-  if (entree.ajusterTerrain && entree.terrain !== null && comparables.length) {
+  if (entree.ajusterTerrain && entree.terrain !== null && entree.prixTerrain
+      && comparables.length) {
     const terrains = comparables.map((c) => c.sterr || 0).sort((a, b) => a - b);
     const terrainMedian = terrains[Math.floor(terrains.length / 2)];
     const ecart = borner(entree.terrain - terrainMedian,
