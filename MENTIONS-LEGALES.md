@@ -31,7 +31,8 @@ l'acquéreur n'y figurent. Les informations diffusées ici (adresse, prix, surfa
 date) sont celles publiées par l'administration fiscale.
 
 Les départements d'Alsace-Moselle (67, 68, 57) et Mayotte ne figurent pas dans DVF.
-Cela est sans effet ici, ce site ne couvrant que le Gard et l'Ardèche.
+Cela est sans effet ici : aucun de ces territoires ne figure parmi les
+11 départements couverts (Alpes-de-Haute-Provence (04), Hautes-Alpes (05), Alpes-Maritimes (06), Ardèche (07), Aude (11), Bouches-du-Rhône (13), Drôme (26), Gard (30), Hérault (34), Var (83), Vaucluse (84)).
 
 ## Portée des estimations
 

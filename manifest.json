@@ -1,7 +1,7 @@
 {
-  "name": "Immo Gard & Ardèche — ventes réelles et estimation",
+  "name": "Immo — Occitanie, PACA & Rhône-Alpes : ventes réelles et estimation",
   "short_name": "Ventes DVF",
-  "description": "Les ventes de maisons réellement enregistrées dans le Gard et l'Ardèche, sur carte, avec estimation par comparaison.",
+  "description": "Les ventes de maisons réellement enregistrées dans huit départements du sud de la France, sur carte, avec estimation par comparaison.",
   "lang": "fr",
   "dir": "ltr",
   "start_url": "./",

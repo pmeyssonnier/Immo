@@ -3,8 +3,8 @@
 """Fabrique un jeu de donnees de DEMONSTRATION, a taille reelle.
 
 A quoi ca sert ? A construire et tester le site AVANT d'avoir les vraies
-donnees DVF. On utilise les VRAIS contours des 692 communes du Gard et de
-l'Ardeche, mais des ventes INVENTEES.
+donnees DVF. On utilise les VRAIS contours des communes des departements
+couverts, mais des ventes INVENTEES.
 
 /!\\ Les prix produits ici sont FICTIFS. Le fichier meta.json porte le drapeau
 "demonstration": true, et le site affiche alors un bandeau rouge d'avertissement.
@@ -23,19 +23,37 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import preparer_donnees as prep  # noqa: E402
 
-# Quelques villes reelles a qui on donne beaucoup de ventes, pour eprouver
-# l'affichage dense (regroupement des marqueurs, fluidite de la carte).
-GRANDES_VILLES = {
-    "30189": 3000,  # Nimes
-    "30007": 900,   # Ales
-    "30032": 420,   # Bagnols-sur-Ceze
-    "30258": 400,   # Villeneuve-les-Avignon
-    "30341": 380,   # Vauvert
-    "07010": 520,   # Annonay
-    "07019": 480,   # Aubenas
-    "07186": 300,   # Privas
-    "07204": 280,   # Saint-Peray
-    "07348": 260,   # Tournon-sur-Rhone
+# Dans chaque departement, quelques communes recoivent beaucoup de ventes, pour
+# eprouver l'affichage dense (regroupement des marqueurs, fluidite de la carte).
+# On les tire au sort avec une graine fixe plutot que de coder une liste de
+# villes : ainsi, ajouter un departement ne demande rien de plus.
+NB_GRANDES_VILLES_PAR_DEPARTEMENT = 3
+VENTES_GRANDE_VILLE = (700, 3000)
+
+
+def designer_grandes_villes(codes_par_departement, alea):
+    grandes = {}
+    for codes in codes_par_departement.values():
+        for code in alea.sample(sorted(codes),
+                                min(NB_GRANDES_VILLES_PAR_DEPARTEMENT, len(codes))):
+            grandes[code] = alea.randint(*VENTES_GRANDE_VILLE)
+    return grandes
+
+
+# Logarithme du prix median au m2 vise, par departement. Valeurs plausibles,
+# uniquement destinees a produire un jeu de demonstration realiste.
+NIVEAU_PRIX = {
+    "04": 7.55,   # Alpes-de-Haute-Provence
+    "05": 7.80,   # Hautes-Alpes
+    "06": 8.55,   # Alpes-Maritimes : environ 5 200 EUR/m2
+    "07": 7.45,   # Ardeche
+    "11": 7.40,   # Aude
+    "13": 8.30,   # Bouches-du-Rhone
+    "26": 7.65,   # Drome
+    "30": 7.75,   # Gard
+    "34": 7.95,   # Herault
+    "83": 8.25,   # Var
+    "84": 7.90,   # Vaucluse
 }
 
 
@@ -49,12 +67,17 @@ def telecharger_contours():
 
 
 def inventer_ventes(centroides, noms, alea):
+    codes_par_departement = {}
+    for code in centroides:
+        codes_par_departement.setdefault(code[:2], set()).add(code)
+    grandes_villes = designer_grandes_villes(codes_par_departement, alea)
+
     ventes = []
     for code, (lat, lon) in centroides.items():
         dep = code[:2]
         # combien de ventes dans cette commune ?
-        if code in GRANDES_VILLES:
-            nombre = GRANDES_VILLES[code]
+        if code in grandes_villes:
+            nombre = grandes_villes[code]
         else:
             tirage = alea.random()
             if tirage < 0.06:
@@ -64,9 +87,11 @@ def inventer_ventes(centroides, noms, alea):
             else:
                 nombre = alea.randint(45, 160)
 
-        # niveau de prix propre a la commune (le Gard est un peu plus cher)
-        base = alea.lognormvariate(7.55 if dep == "30" else 7.38, 0.19)
-        base = max(900.0, min(3600.0, base))
+        # Niveau de prix propre a la commune. Le parametre depend du
+        # departement : sans cela, on ne testerait jamais l'echelle de couleurs
+        # sur un ecart aussi grand que celui entre l'Ardeche et la Cote d'Azur.
+        base = alea.lognormvariate(NIVEAU_PRIX.get(dep, 7.45), 0.22)
+        base = max(700.0, min(14000.0, base))
 
         for _ in range(nombre):
             t = alea.randint(0, 71)

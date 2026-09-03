@@ -7,7 +7,7 @@
 // suffit de suivre les actions ci-dessous.
 
 import { CONFIG } from "./config.js";
-import { chargerBandes, chargerBase, chargerVentes } from "./donnees.js";
+import { chargerAdjacence, chargerBandes, chargerBase, chargerVentes } from "./donnees.js";
 import { estimer, estimerParBandes } from "./estimation.js";
 import * as liste from "./liste.js";
 import * as carte from "./carte.js";
@@ -20,7 +20,7 @@ const etat = {
   communes: [],
   meta: null,
   contours: null,
-  adjacence: {},
+  adjacence: null,          // charge a la demande, voir assurerAdjacence
   bandesParDepartement: {},
 
   recherche: "",
@@ -52,6 +52,11 @@ async function assurerVentes(codes) {
   const ajout = {};
   manquants.forEach((code, i) => { ajout[code] = lots[i]; });
   etat.ventesParCommune = { ...etat.ventesParCommune, ...ajout };
+}
+
+async function assurerAdjacence() {
+  if (!etat.adjacence) etat.adjacence = await chargerAdjacence();
+  return etat.adjacence;
 }
 
 async function assurerBandes(departement) {
@@ -95,7 +100,7 @@ async function lancerEstimation(parametres) {
 
   // --- palier 1 -----------------------------------------------------------
   if (!resultat.suffisant) {
-    const voisines = etat.adjacence[code] || [];
+    const voisines = (await assurerAdjacence())[code] || [];
     if (voisines.length) {
       await assurerVentes(voisines);
       const ventesVoisines = voisines.flatMap(
@@ -219,6 +224,7 @@ async function demarrer() {
     document.getElementById("chargement").hidden = true;
     document.getElementById("application").hidden = false;
     commandesCarte.invalider();
+    commandesCarte.cadrerSurLesDonnees(etat.communes);
     majEtat({});
   } catch (erreur) {
     afficherErreurFatale(erreur);

@@ -13,6 +13,7 @@ import json
 import os
 import re
 import struct
+import sys
 import threading
 import unittest
 import urllib.request
@@ -21,6 +22,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(RACINE, "scripts"))
 
 SIGNATURE_PNG = b"\x89PNG\r\n\x1a\n"
 
@@ -225,6 +227,34 @@ class TestSite(unittest.TestCase):
         self.assertEqual(entete_png(octets)[3], AVEC_CANAL_ALPHA)
         self.assertEqual(pixel_haut_gauche(octets)[3], 0,
                          "icone-512.png : le coin devrait etre transparent")
+
+    def test_liste_des_departements_identique_des_deux_cotes(self):
+        """Le script de preparation et le site doivent couvrir les MEMES
+        departements, dans le MEME ordre.
+
+        Ce test existe a cause d'un vrai piege : en JavaScript, les cles d'objet
+        qui ressemblent a des entiers ("11", "26"...) sont parcourues en premier,
+        avant les autres. Ecrite comme un objet, la liste affichait donc l'Aude
+        et la Drome avant les Alpes-Maritimes et l'Ardeche, sans que rien ne
+        signale l'anomalie. D'ou la liste ordonnee cote JavaScript, et ce test.
+        """
+        import preparer_donnees  # le script vit dans scripts/
+
+        config = open(os.path.join(RACINE, "js", "config.js"), encoding="utf-8").read()
+        bloc = config.split("DEPARTEMENTS: [")[1].split("]")[0]
+        cote_site = re.findall(r'code:\s*"(\d{2})"', bloc)
+        noms_site = re.findall(r'nom:\s*"([^"]+)"', bloc)
+        cote_script = list(preparer_donnees.DEPARTEMENTS)
+
+        self.assertEqual(cote_site, cote_script,
+                         "js/config.js et scripts/preparer_donnees.py ne couvrent pas "
+                         "les memes departements, ou pas dans le meme ordre")
+        self.assertEqual(cote_site, sorted(cote_site),
+                         "les departements doivent etre ranges par numero croissant")
+        self.assertEqual(
+            noms_site,
+            [preparer_donnees.DEPARTEMENTS[c]["nom"] for c in cote_script],
+            "les noms de departements different entre le site et le script")
 
     def test_extension_json_pour_les_contours(self):
         """GitHub Pages ne compresse pas les fichiers .geojson : 4x plus lourd."""

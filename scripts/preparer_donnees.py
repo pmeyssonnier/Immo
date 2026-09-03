@@ -37,15 +37,28 @@ from collections import defaultdict
 # Reglages generaux
 # --------------------------------------------------------------------------
 
-DEPARTEMENTS = {"30": "Gard", "07": "Ardeche"}
-NOMS_AFFICHES = {"30": "Gard", "07": "Ardèche"}
+# Les departements couverts, dans l'ordre d'affichage. Le "slug" est le nom du
+# dossier chez france-geojson, d'ou proviennent les contours des communes.
+# Pour en ajouter un : une ligne ici, et rien d'autre a toucher.
+DEPARTEMENTS = {
+    "04": {"nom": "Alpes-de-Haute-Provence", "slug": "04-alpes-de-haute-provence"},
+    "05": {"nom": "Hautes-Alpes", "slug": "05-hautes-alpes"},
+    "06": {"nom": "Alpes-Maritimes", "slug": "06-alpes-maritimes"},
+    "07": {"nom": "Ardèche", "slug": "07-ardeche"},
+    "11": {"nom": "Aude", "slug": "11-aude"},
+    "13": {"nom": "Bouches-du-Rhône", "slug": "13-bouches-du-rhone"},
+    "26": {"nom": "Drôme", "slug": "26-drome"},
+    "30": {"nom": "Gard", "slug": "30-gard"},
+    "34": {"nom": "Hérault", "slug": "34-herault"},
+    "83": {"nom": "Var", "slug": "83-var"},
+    "84": {"nom": "Vaucluse", "slug": "84-vaucluse"},
+}
 
 URL_DVF = "https://files.data.gouv.fr/geo-dvf/latest/csv/{annee}/departements/{dep}.csv.gz"
 URL_CONTOURS = {
-    "30": "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/"
-          "departements/30-gard/communes-30-gard.geojson",
-    "07": "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/"
-          "departements/07-ardeche/communes-07-ardeche.geojson",
+    dep: "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/"
+         "departements/{slug}/communes-{slug}.geojson".format(slug=infos["slug"])
+    for dep, infos in DEPARTEMENTS.items()
 }
 
 # Les dates de vente sont stockees en "nombre de mois depuis janvier 2020".
@@ -63,10 +76,16 @@ COLONNES_REQUISES = [
 COLONNES_ADRESSE = ["adresse_numero", "adresse_suffixe", "adresse_nom_voie"]
 
 # --- Etage 1 du nettoyage : bornes absolues de plausibilite -----------------
-PRIX_MIN, PRIX_MAX = 10_000.0, 2_500_000.0
-BATI_MIN, BATI_MAX = 15.0, 600.0
+# Ces bornes ne servent qu'a ecarter les absurdites de saisie. Elles sont
+# volontairement TRES larges : c'est le filtre MAD, calcule commune par commune,
+# qui fait le vrai tri. Elles ont ete elargies en passant de 2 a 8 departements,
+# car une villa du Cap d'Antibes a 20 000 EUR/m2 est une vente parfaitement
+# reelle, la ou les anciennes bornes (calees sur le Gard) l'auraient supprimee
+# et auraient donc fausse la mediane des communes du littoral vers le bas.
+PRIX_MIN, PRIX_MAX = 10_000.0, 15_000_000.0
+BATI_MIN, BATI_MAX = 15.0, 1_000.0
 TERRAIN_MAX = 100_000.0
-PRIX_M2_MIN, PRIX_M2_MAX = 200.0, 8_000.0
+PRIX_M2_MIN, PRIX_M2_MAX = 200.0, 25_000.0
 PIECES_MAX = 20
 
 # --- Etage 2 : ecart median absolu (MAD) en espace logarithmique ------------
@@ -78,7 +97,12 @@ MIN_VENTES_AFFICHAGE = 5
 
 # --- Simplification des contours -------------------------------------------
 DECIMALES_CONTOURS = 4     # ~10 m, largement suffisant a l'echelle d'un departement
-EPSILON_DP = 0.001         # ~110 m : tolerance Douglas-Peucker
+# ~160 m. Mesure faite sur les 8 departements : a 80 m les contours pesent
+# 332 Ko compresses, a 160 m ils tombent a 223 Ko. L'ecart de trace atteint au
+# pire 4 pixels au zoom 12 -- or a ce zoom les communes ne sont plus que des
+# reperes en trait fin derriere les points de vente, et au zoom d'ensemble
+# (le seul ou le coloriage compte) l'ecart est inferieur au pixel.
+EPSILON_DP = 0.002
 
 # --- Bandes de surface pour le repli departemental de l'estimateur ---------
 BANDES_SURFACE = [(0, 70), (70, 90), (90, 110), (110, 130),
@@ -742,6 +766,10 @@ def construire_sorties(ventes, contours, adjacence, centroides, noms_communes,
 
     t_reference = max((v["t"] for v in ventes), default=0)
 
+    ventes_par_dep = defaultdict(list)
+    for vente in ventes:
+        ventes_par_dep[vente["dep"]].append(vente)
+
     # Prix du terrain : on calcule d'abord commune par commune, puis la valeur
     # departementale est la MEDIANE de ces resultats communaux.
     # Surtout pas une regression sur le departement entier : les communes cheres
@@ -811,9 +839,8 @@ def construire_sorties(ventes, contours, adjacence, centroides, noms_communes,
     ecrire_json(os.path.join(dossier, "adjacence.json"), adjacence)
 
     for dep in DEPARTEMENTS:
-        ventes_dep = [v for v in ventes if v["dep"] == dep]
         ecrire_json(os.path.join(dossier, "bandes-%s.json" % dep),
-                    calculer_bandes(ventes_dep))
+                    calculer_bandes(ventes_par_dep[dep]))
 
     meta = {
         "genere_le": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -822,13 +849,15 @@ def construire_sorties(ventes, contours, adjacence, centroides, noms_communes,
         "mois_reference": t_reference,
         "nb_ventes": len(ventes),
         "min_ventes_affichage": MIN_VENTES_AFFICHAGE,
+        # On ne declare que les departements ayant reellement des ventes : un
+        # departement vide n'a pas de mediane, et une mediane a zero ferait
+        # echouer les controles de coherence pour une mauvaise raison.
         "departements": {
             dep: {
-                "nom": NOMS_AFFICHES[dep],
-                "nb_ventes": sum(1 for v in ventes if v["dep"] == dep),
-                "prix_m2_median": round(mediane([v["prix_m2"] for v in ventes
-                                                 if v["dep"] == dep]) or 0),
-            } for dep in DEPARTEMENTS
+                "nom": DEPARTEMENTS[dep]["nom"],
+                "nb_ventes": len(ventes_par_dep[dep]),
+                "prix_m2_median": round(mediane([v["prix_m2"] for v in ventes_par_dep[dep]])),
+            } for dep in DEPARTEMENTS if ventes_par_dep[dep]
         },
         "seuils_couleurs": seuils,
         "indice_prix": calculer_indice_prix(ventes),
@@ -863,8 +892,9 @@ def verifier(dossier, tolerant=False):
             print("ECHEC : " + probleme)
         return False
 
-    seuil_ventes = 10 if tolerant else 20_000
-    seuil_communes = 1 if tolerant else 400
+    seuil_ventes = 10 if tolerant else 60_000
+    seuil_communes = 1 if tolerant else 1_200
+    seuil_par_departement = 0 if tolerant else 2_000
 
     if meta["nb_ventes"] < seuil_ventes:
         problemes.append("seulement %d ventes retenues (attendu >= %d)"
@@ -875,11 +905,27 @@ def verifier(dossier, tolerant=False):
         problemes.append("seulement %d communes exploitables (attendu >= %d)"
                          % (coloriables, seuil_communes))
 
+    # Controle par departement, et non seulement sur le total : c'est le seul
+    # moyen de reperer qu'UN departement n'a pas ete telecharge. Un seuil global
+    # resterait vert alors qu'il manquerait un huitieme de la France du sud.
+    if not tolerant:
+        manquants = [d for d in DEPARTEMENTS if d not in meta["departements"]]
+        if manquants:
+            problemes.append("departements absents du resultat : " + ", ".join(manquants))
+
     for dep, infos in meta["departements"].items():
+        if infos["nb_ventes"] < seuil_par_departement:
+            problemes.append("departement %s : seulement %d ventes (attendu >= %d) "
+                             "- telechargement probablement incomplet"
+                             % (dep, infos["nb_ventes"], seuil_par_departement))
+        if infos["nb_ventes"] == 0:
+            continue
         prix = infos["prix_m2_median"]
-        if not (800 <= prix <= 4000):
+        # Intervalle large : il va de l'Ardeche rurale a la Cote d'Azur. Il ne
+        # sert qu'a reperer un resultat absurde, pas a juger un marche.
+        if not (700 <= prix <= 12_000):
             problemes.append("mediane %s = %d EUR/m2, hors de l'intervalle plausible "
-                             "800-4000" % (dep, prix))
+                             "700-12000" % (dep, prix))
 
     for probleme in problemes:
         print("ECHEC : " + probleme)
@@ -997,9 +1043,9 @@ def main():
         journal("Ecriture dans %s ..." % options.sortie)
         meta = construire_sorties(ventes, contours, adjacence, centroides,
                                   noms_communes, millesimes, options.sortie)
-        for dep, infos in meta["departements"].items():
-            journal("  %-8s %6d ventes, mediane %d EUR/m2"
-                    % (NOMS_AFFICHES[dep], infos["nb_ventes"], infos["prix_m2_median"]))
+        for dep, infos in sorted(meta["departements"].items()):
+            journal("  %-18s %7d ventes, mediane %5d EUR/m2"
+                    % (DEPARTEMENTS[dep]["nom"], infos["nb_ventes"], infos["prix_m2_median"]))
 
         os.makedirs(options.sortie, exist_ok=True)
         with open(os.path.join(options.sortie, "_rapport.txt"), "w", encoding="utf-8") as flux:

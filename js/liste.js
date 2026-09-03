@@ -10,6 +10,10 @@ let compteur = null;
 // Empreinte du dernier rendu : elle evite de reconstruire les 692 lignes a
 // chaque deplacement de la carte (ce qui ferait sauter le defilement).
 let derniereEmpreinte = null;
+// Departements que l'utilisateur a ouverts a la main. Avec 8 groupes et 2 300
+// communes, tout deplier au demarrage donnerait une liste interminable : on
+// part donc replie, et on se souvient de ce qui a ete ouvert.
+const departementsOuverts = new Set();
 
 export function initialiser(racine, actions) {
   racine.innerHTML = `
@@ -34,6 +38,16 @@ export function initialiser(racine, actions) {
     const ligne = evenement.target.closest("[data-code]");
     if (ligne) actions.selectionnerCommune(ligne.dataset.code);
   });
+
+  // On note ce que l'utilisateur ouvre ou ferme, pour le restituer au prochain
+  // affichage. L'ouverture elle-meme est faite par le navigateur : aucun
+  // reaffichage n'est declenche ici.
+  conteneurListe.addEventListener("toggle", (evenement) => {
+    const bloc = evenement.target;
+    if (bloc.tagName !== "DETAILS") return;
+    if (bloc.open) departementsOuverts.add(bloc.dataset.dep);
+    else departementsOuverts.delete(bloc.dataset.dep);
+  }, true);
 
   return {
     focus: () => champRecherche.focus(),
@@ -70,14 +84,23 @@ export function rendre(etat) {
     ? `${total} commune${total > 1 ? "s" : ""} trouvée${total > 1 ? "s" : ""}`
     : `${etat.communes.length} communes`;
 
+  const depDeLaSelection = etat.communeSelectionnee
+    ? (etat.communes.find((c) => c.code === etat.communeSelectionnee) || {}).dep
+    : null;
+
   const morceaux = [];
-  for (const dep of ["30", "07"]) {
+  for (const { code: dep, nom: nomDep } of CONFIG.DEPARTEMENTS) {
     const liste = parDepartement[dep];
     if (!liste || !liste.length) continue;
     liste.sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
 
-    morceaux.push(`<details open>
-      <summary>${CONFIG.DEPARTEMENTS[dep]} <span class="badge">${liste.length}</span></summary>
+    // Un groupe s'ouvre s'il contient un resultat de recherche, s'il contient
+    // la commune selectionnee, ou si l'utilisateur l'a ouvert lui-meme.
+    const ouvert = Boolean(recherche) || dep === depDeLaSelection
+      || departementsOuverts.has(dep);
+
+    morceaux.push(`<details data-dep="${dep}"${ouvert ? " open" : ""}>
+      <summary>${nomDep} <span class="badge">${liste.length}</span></summary>
       <ul>`);
     for (const commune of liste) {
       const actif = commune.code === etat.communeSelectionnee ? " class=\"actif\"" : "";

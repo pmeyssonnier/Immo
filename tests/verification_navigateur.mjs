@@ -38,11 +38,62 @@ await page.goto(`http://localhost:${PORT}${BASE}`, { waitUntil: "networkidle" })
 await page.waitForSelector("#application:not([hidden])", { timeout: 20000 });
 
 // --- 1. la liste des communes -------------------------------------------
-const nbCommunes = await page.locator("#liste-communes li").count();
-verifier(nbCommunes > 600, `liste : ${nbCommunes} communes affichées (attendu ~692)`);
+// Les groupes sont repliés au démarrage : c'est le nombre de DÉPARTEMENTS qui
+// doit être visible, pas 2 300 lignes de communes.
 const groupes = await page.locator("#liste-communes details summary").allInnerTexts();
-verifier(groupes.length === 2 && groupes[0].includes("Gard") && groupes[1].includes("Ardèche"),
-  `groupes par département : ${JSON.stringify(groupes)}`);
+// On compare au nombre de départements réellement présents dans les données,
+// plutôt qu'à un chiffre écrit en dur : ce test reste juste si on en ajoute.
+const depsDansLesDonnees = await page.evaluate(async () => {
+  const t = await (await fetch("data/communes.json")).json();
+  const iDep = t.champs.indexOf("dep");
+  return [...new Set(t.valeurs.map((l) => l[iDep]))].length;
+});
+verifier(groupes.length === depsDansLesDonnees,
+  `${groupes.length} départements dans la liste (autant que dans les données)`);
+// L'ordre affiché doit être exactement celui déclaré dans js/config.js.
+// Un objet JavaScript rangeait les clés "11", "26"… avant "06" et "07" :
+// ce contrôle est ce qui empêche ce piège de revenir.
+const ordreAffiche = groupes.map((g) => g.split("\n")[0].trim());
+const ordreAttendu = await page.evaluate(async () => {
+  const texte = await (await fetch("js/config.js")).text();
+  const bloc = texte.split("DEPARTEMENTS: [")[1].split("]")[0];
+  return [...bloc.matchAll(/nom:\s*"([^"]+)"/g)].map((m) => m[1]);
+});
+verifier(ordreAffiche.join("|") === ordreAttendu.join("|"),
+  ordreAffiche.join("|") === ordreAttendu.join("|")
+    ? `ordre conforme à config.js : ${ordreAffiche.slice(0, 3).join(", ")}…`
+    : `ordre affiché ${JSON.stringify(ordreAffiche)} au lieu de ${JSON.stringify(ordreAttendu)}`);
+// Attention : un <details> replié GARDE ses lignes dans le DOM, il les masque
+// seulement. C'est donc le nombre de lignes VISIBLES qu'il faut compter.
+const communesVisibles = await page.locator("#liste-communes li:visible").count();
+verifier(communesVisibles === 0,
+  `au démarrage, aucune commune visible (${communesVisibles}) — liste courte et lisible`);
+const dureeAffichage = await page.evaluate(() => {
+  const t = performance.now();
+  document.querySelector("#champ-recherche").value = "saint";
+  document.querySelector("#champ-recherche").dispatchEvent(new Event("input"));
+  return performance.now() - t;
+});
+verifier(dureeAffichage < 400,
+  `réaffichage de la liste filtrée en ${dureeAffichage.toFixed(0)} ms`);
+await page.fill("#champ-recherche", "");
+await page.waitForTimeout(200);
+const totalAnnonce = await page.evaluate(() => [...document.querySelectorAll(
+  "#liste-communes .badge")].reduce((s, b) => s + Number(b.textContent), 0));
+const communesDansLesDonnees = await page.evaluate(async () => {
+  const t = await (await fetch("data/communes.json")).json();
+  return t.valeurs.length;
+});
+verifier(totalAnnonce === communesDansLesDonnees,
+  `${totalAnnonce} communes annoncées, autant que dans les données`);
+
+// dépliage d'un département
+await page.click("#liste-communes details[data-dep=\"30\"] summary");
+await page.waitForTimeout(200);
+const communesGard = await page.locator('#liste-communes details[data-dep="30"] li').count();
+verifier(communesGard > 300, `Gard déplié : ${communesGard} communes`);
+await page.click("#liste-communes details[data-dep=\"30\"] summary");
+await page.waitForTimeout(200);
 
 // --- 2. la carte et le choroplèthe --------------------------------------
 // Leaflet dessine les 692 communes sur un CANEVAS (option preferCanvas), pas en
@@ -63,13 +114,13 @@ verifier(peinture && peinture.peints > 200 && peinture.couleurs > 20,
 verifier(await page.locator(".legende").isVisible(), "légende des prix affichée");
 
 // --- 3. la recherche sans accents ---------------------------------------
+// La recherche fouille les 8 départements d'un coup et déplie ce qu'il faut.
 await page.fill("#champ-recherche", "nimes");
 await page.waitForTimeout(250);
 const trouves = await page.locator("#liste-communes li .nom").allInnerTexts();
 verifier(trouves.some((t) => t === "Nîmes"),
-  `recherche « nimes » trouve « Nîmes » (${trouves.length} résultat(s))`);
-await page.fill("#champ-recherche", "");
-await page.waitForTimeout(200);
+  `recherche « nimes » trouve « Nîmes » parmi ${depsDansLesDonnees} départements`
+  + ` (${trouves.length} résultat(s))`);
 
 // --- 4. sélection d'une commune -----------------------------------------
 await page.click('#liste-communes li[data-code="30189"]');
@@ -120,8 +171,9 @@ const codeVide = await page.evaluate(async () => {
   return ligne ? ligne[0] : null;
 });
 if (codeVide) {
-  await page.fill("#champ-recherche", "");
-  await page.waitForTimeout(150);
+  // on la retrouve par son code : la recherche accepte aussi les codes INSEE
+  await page.fill("#champ-recherche", codeVide);
+  await page.waitForTimeout(300);
   await page.evaluate((code) => {
     document.querySelector(`#liste-communes li[data-code="${code}"]`).click();
   }, codeVide);
@@ -146,14 +198,22 @@ if (codeVide) {
 }
 
 // --- 6 bis. non-regression : deplacer la carte ne doit rien casser ---------
-await page.fill("#champ-recherche", "");
-await page.waitForTimeout(200);
+await page.fill("#champ-recherche", "nimes");
+await page.waitForTimeout(300);
 await page.evaluate(() => document.querySelector('#liste-communes li[data-code="30189"]').click());
 await page.waitForTimeout(800);
 await page.fill("#surface-habitable", "135");
+// On vide d'abord la recherche (sinon le Gard ne contient qu'une ligne), puis
+// on déplie un département : sans cela la liste est trop courte pour défiler et
+// le test passerait sans rien prouver.
+await page.fill("#champ-recherche", "");
+await page.waitForTimeout(250);
+await page.click('#liste-communes details[data-dep="30"] summary');
+await page.waitForTimeout(250);
 const defilementAvant = await page.evaluate(() => {
   const l = document.querySelector("#liste-communes"); l.scrollTop = 400; return l.scrollTop;
 });
+verifier(defilementAvant > 0, `liste défilable après dépliage (${defilementAvant} px)`);
 await page.mouse.move(700, 500);
 await page.mouse.down(); await page.mouse.move(600, 460, { steps: 8 }); await page.mouse.up();
 await page.waitForTimeout(1200);

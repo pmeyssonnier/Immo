@@ -1,9 +1,14 @@
-# Immo — Gard & Ardèche
+# Immo — Occitanie, PACA & Rhône-Alpes
 
-Un site web qui montre **les vraies ventes de maisons** enregistrées dans le Gard (30)
-et l'Ardèche (07), sur une carte, et qui **estime un bien** à partir de ces ventes.
+Un site web qui montre **les vraies ventes de maisons** enregistrées dans
+**11 départements du sud de la France**, sur une carte, et qui **estime un bien**
+à partir de ces ventes.
 
-- À gauche : les 692 communes des deux départements, avec une recherche.
+Alpes-de-Haute-Provence (04), Hautes-Alpes (05), Alpes-Maritimes (06), Ardèche (07), Aude (11), Bouches-du-Rhône (13), Drôme (26), Gard (30), Hérault (34), Var (83), Vaucluse (84)
+
+- À gauche : les 2 785 communes, groupées par département. Les groupes sont
+  **repliés** au démarrage — cliquez sur un département pour le déplier. La
+  recherche, elle, fouille les 11 départements d'un coup.
 - Au milieu : une carte. De loin, les communes sont **coloriées** selon leur prix au m².
   En zoomant (ou en cliquant une commune), les **ventes apparaissent une par une**.
 - À droite : la fiche de la commune et l'**estimateur**.
@@ -112,7 +117,7 @@ décochée par défaut. Le prix du mètre carré de terrain est calculé à l'é
 du **département**, jamais de la commune : mesure faite, avec quelques centaines
 de ventes le chiffre varie du simple au décuple selon l'échantillon. Il faut
 plusieurs milliers de ventes pour qu'il se stabilise — ce qu'aucune commune du
-Gard ou de l'Ardèche n'atteint, mais que les départements atteignent largement.
+n'atteint, mais que les départements atteignent largement.
 
 DVF enregistre le prix, l'adresse et les surfaces — **rien d'autre**. Le fichier
 ignore l'état du bien, les travaux, l'exposition, la vue, le DPE, le bruit.

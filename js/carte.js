@@ -141,6 +141,20 @@ export function initialiser(racine, actions) {
   carte.on("moveend", signaler);
 
   return {
+    /**
+     * Cadre la carte sur les departements reellement charges.
+     * Ainsi, ajouter ou retirer un departement ne demande de retoucher aucun
+     * reglage : la vue de depart s'ajuste toute seule aux donnees.
+     */
+    cadrerSurLesDonnees(communes) {
+      const points = communes
+        .filter((c) => c.lat !== null && c.lon !== null)
+        .map((c) => [c.lat, c.lon]);
+      if (points.length) {
+        carte.fitBounds(L.latLngBounds(points), { padding: [18, 18] });
+      }
+    },
+
     centrerSur(lat, lon, zoom) {
       carte.setView([lat, lon], zoom || Math.max(carte.getZoom(), 14));
     },

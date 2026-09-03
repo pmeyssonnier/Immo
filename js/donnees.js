@@ -23,13 +23,21 @@ function enObjets(table) {
 }
 
 export async function chargerBase() {
-  const [meta, communes, contours, adjacence] = await Promise.all([
+  const [meta, communes, contours] = await Promise.all([
     lireJson("data/meta.json"),
     lireJson("data/communes.json"),
     lireJson("data/communes-geo.json"),
-    lireJson("data/adjacence.json"),
   ]);
-  return { meta, communes: enObjets(communes), contours, adjacence };
+  return { meta, communes: enObjets(communes), contours };
+}
+
+/**
+ * Les communes limitrophes. Ce fichier ne sert QUE lorsqu'une estimation doit
+ * s'elargir au-dela de la commune : inutile de le faire attendre au premier
+ * affichage de la carte.
+ */
+export async function chargerAdjacence() {
+  return lireJson("data/adjacence.json");
 }
 
 export async function chargerBandes(departement) {
