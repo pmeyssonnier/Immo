@@ -71,7 +71,7 @@ Contours des communes...
   contours : 189103 sommets -> 66831 (65 % retires)
   2785 communes, 2785 ont au moins un voisin
 Ecriture dans data ...
-  prix du terrain (valeur departementale) : 04 = 25.0 EUR/m2 sur 7614 ventes avec terrain, 05 = 23.2 EUR/m2 sur 4430 ventes avec terrain, 06 = 20.0 EUR/m2 sur 17031 ventes avec terrain, 07 = 17.3 EUR/m2 sur 14936 ventes avec terrain, 11 = 44.3 EUR/m2 sur 23776 ventes avec terrain, 13 = 19.0 EUR/m2 sur 37336 ventes avec terrain, 26 = 10.4 EUR/m2 sur 18986 ventes avec terrain, 30 = 22.3 EUR/m2 sur 31041 ventes avec terrain, 34 = 47.9 EUR/m2 sur 42326 ventes avec terrain, 83 = 20.0 EUR/m2 sur 40945 ventes avec terrain, 84 = 24.6 EUR/m2 sur 21932 ventes avec terrain
+  prix du terrain (valeur departementale) : 04 = 25.0 EUR/m2 sur 7614 ventes avec terrain, 05 = 23.2 EUR/m2 sur 4430 ventes avec terrain, 06 = non mesurable (aucun ajustement propose) sur 17031 ventes avec terrain, 07 = 17.3 EUR/m2 sur 14936 ventes avec terrain, 11 = 44.3 EUR/m2 sur 23776 ventes avec terrain, 13 = 19.0 EUR/m2 sur 37336 ventes avec terrain, 26 = 10.4 EUR/m2 sur 18986 ventes avec terrain, 30 = 22.3 EUR/m2 sur 31041 ventes avec terrain, 34 = 47.9 EUR/m2 sur 42326 ventes avec terrain, 83 = non mesurable (aucun ajustement propose) sur 40945 ventes avec terrain, 84 = 24.6 EUR/m2 sur 21932 ventes avec terrain
   Alpes-de-Haute-Provence    8002 ventes, mediane  2273 EUR/m2
   Hautes-Alpes          4828 ventes, mediane  2548 EUR/m2
   Alpes-Maritimes      19672 ventes, mediane  4147 EUR/m2
