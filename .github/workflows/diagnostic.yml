@@ -1,0 +1,36 @@
+# Workflow de diagnostic, volontairement minimal.
+#
+# Il n'utilise AUCUNE action externe (aucun "uses:"), uniquement des commandes.
+# But : savoir si les workflows échouent à cause de la politique du dépôt sur
+# les actions autorisées. Si celui-ci démarre alors que les autres échouent,
+# le diagnostic est fait.
+
+name: Diagnostic
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Environnement disponible sans aucune action externe
+        run: |
+          echo "python : $(python3 --version)"
+          echo "node   : $(node --version)"
+          echo "git    : $(git --version)"
+          echo "dépôt  : $GITHUB_REPOSITORY  branche : $GITHUB_REF_NAME"
+
+      - name: Récupérer le code à la main (sans actions/checkout)
+        run: |
+          git clone --depth 1 --branch "$GITHUB_REF_NAME" \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" depot
+          cd depot && ls && echo "fichiers de ventes : $(find data/ventes -name '*.json' | wc -l)"
+
+      - name: Lancer les tests
+        run: |
+          cd depot
+          python3 -m unittest discover tests
+          node --test tests/test_estimation.mjs
