@@ -703,8 +703,9 @@ class TestSondageDesMillesimes(unittest.TestCase):
     Ce test existe parce que la question a ete mal traitee une fois : en
     remplacant un all() sur generateur (qui s'arrete au premier echec) par un
     dictionnaire complet, l'annee en cours -- jamais encore publiee -- est
-    passee de un sondage a quatorze, chacun reessayable trois fois. Le robot
-    a mis treize minutes la ou il en mettait cinq.
+    passee de un sondage a quatorze. Chacun pouvant etre reessaye trois fois
+    avec 25 s d'attente, cela vaut jusqu'a cinq minutes perdues a interroger
+    treize departements pour une annee deja disqualifiee par le premier.
     """
 
     def setUp(self):
