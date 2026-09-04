@@ -314,17 +314,23 @@ def millesimes_disponibles(nb_annees):
     annee_courante = dt.date.today().year
     trouvees = []
     for annee in range(annee_courante, annee_courante - 8, -1):
-        etats = dict((dep, url_existe(URL_DVF.format(annee=annee, dep=dep)))
-                     for dep in DEPARTEMENTS)
-        inconnus = sorted(dep for dep, etat in etats.items() if etat is None)
-        if inconnus:
-            raise SystemExit(
-                "ERREUR : impossible de savoir si le millesime %d existe pour le(s)\n"
-                "departement(s) %s. files.data.gouv.fr est probablement\n"
-                "indisponible. Mieux vaut ne rien publier que publier une annee de\n"
-                "moins sans le dire. Relancer le robot plus tard."
-                % (annee, ", ".join(inconnus)))
-        if all(etats.values()):
+        complet = True
+        for dep in DEPARTEMENTS:
+            etat = url_existe(URL_DVF.format(annee=annee, dep=dep))
+            if etat is None:
+                raise SystemExit(
+                    "ERREUR : impossible de savoir si le millesime %d existe pour le\n"
+                    "departement %s. files.data.gouv.fr est probablement indisponible.\n"
+                    "Mieux vaut ne rien publier que publier une annee de moins sans le\n"
+                    "dire. Relancer le robot plus tard." % (annee, dep))
+            if not etat:
+                # Un seul departement absent suffit a disqualifier l'annee : on
+                # n'interroge pas les treize autres. Sans cet arret, l'annee en
+                # cours -- qui n'est jamais encore publiee -- coutait quatorze
+                # sondages au lieu d'un, chacun pouvant etre reessaye trois fois.
+                complet = False
+                break
+        if complet:
             trouvees.append(annee)
             if len(trouvees) == nb_annees:
                 break

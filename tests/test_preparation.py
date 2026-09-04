@@ -6,6 +6,7 @@ Chaque test correspond a un piege reel du fichier DVF. Lancer avec :
 """
 
 import csv
+import datetime as dt
 import json
 import os
 import random
@@ -694,3 +695,61 @@ class TestMatriceDeTelechargement(unittest.TestCase):
         ligne_gard = [l for l in lignes if l.startswith("  30 ")][0]
         self.assertEqual(ligne_gard.count("X"), 4)
         self.assertEqual(ligne_gard.count("-"), 1)
+
+
+class TestSondageDesMillesimes(unittest.TestCase):
+    """Combien de requetes coute la recherche des annees disponibles ?
+
+    Ce test existe parce que la question a ete mal traitee une fois : en
+    remplacant un all() sur generateur (qui s'arrete au premier echec) par un
+    dictionnaire complet, l'annee en cours -- jamais encore publiee -- est
+    passee de un sondage a quatorze, chacun reessayable trois fois. Le robot
+    a mis treize minutes la ou il en mettait cinq.
+    """
+
+    def setUp(self):
+        self.vrai_url_existe = prep.url_existe
+        self.sondages = []
+
+    def tearDown(self):
+        prep.url_existe = self.vrai_url_existe
+
+    def brancher(self, reponse):
+        def faux(url):
+            self.sondages.append(url)
+            return reponse(url)
+        prep.url_existe = faux
+
+    @staticmethod
+    def annee_de(url):
+        return int(url.split("/csv/")[1].split("/")[0])
+
+    def test_une_annee_absente_ne_coute_qu_un_sondage(self):
+        derniere_publiee = dt.date.today().year - 1
+        self.brancher(lambda url: self.annee_de(url) <= derniere_publiee)
+
+        trouvees = prep.millesimes_disponibles(3)
+
+        self.assertEqual(trouvees, [derniere_publiee - 2, derniere_publiee - 1,
+                                    derniere_publiee])
+        annee_en_cours = dt.date.today().year
+        sondages_inutiles = [u for u in self.sondages
+                             if self.annee_de(u) == annee_en_cours]
+        self.assertEqual(len(sondages_inutiles), 1,
+                         "une annee non publiee doit etre ecartee au premier refus")
+        self.assertEqual(len(self.sondages), 1 + 3 * len(prep.DEPARTEMENTS),
+                         "aucun sondage superflu sur les annees retenues")
+
+    def test_un_etat_inconnu_arrete_tout(self):
+        """Une panne reseau n'est pas une absence : on ne devine pas."""
+        derniere_publiee = dt.date.today().year - 1
+
+        def reponse(url):
+            if self.annee_de(url) > derniere_publiee:
+                return False
+            return None if url.endswith("/07.csv.gz") else True
+
+        self.brancher(reponse)
+        with self.assertRaises(SystemExit) as capture:
+            prep.millesimes_disponibles(3)
+        self.assertIn("departement 07", str(capture.exception))
