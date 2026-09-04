@@ -81,7 +81,7 @@ COLONNES_ADRESSE = ["adresse_numero", "adresse_suffixe", "adresse_nom_voie"]
 # --- Etage 1 du nettoyage : bornes absolues de plausibilite -----------------
 # Ces bornes ne servent qu'a ecarter les absurdites de saisie. Elles sont
 # volontairement TRES larges : c'est le filtre MAD, calcule commune par commune,
-# qui fait le vrai tri. Elles ont ete elargies en passant de 2 a 8 departements,
+# qui fait le vrai tri. Elles ont ete elargies en passant de 2 a 14 departements,
 # car une villa du Cap d'Antibes a 20 000 EUR/m2 est une vente parfaitement
 # reelle, la ou les anciennes bornes (calees sur le Gard) l'auraient supprimee
 # et auraient donc fausse la mediane des communes du littoral vers le bas.
@@ -100,11 +100,12 @@ MIN_VENTES_AFFICHAGE = 5
 
 # --- Simplification des contours -------------------------------------------
 DECIMALES_CONTOURS = 4     # ~10 m, largement suffisant a l'echelle d'un departement
-# ~160 m. Mesure faite sur les 8 departements : a 80 m les contours pesent
-# 332 Ko compresses, a 160 m ils tombent a 223 Ko. L'ecart de trace atteint au
-# pire 4 pixels au zoom 12 -- or a ce zoom les communes ne sont plus que des
+# ~160 m. Mesure faite sur les 14 departements : a 160 m les contours pesent
+# 378 Ko compresses, a 240 m ils tomberaient a 303 Ko. L'ecart de trace atteint
+# au pire 4 pixels au zoom 12 -- or a ce zoom les communes ne sont plus que des
 # reperes en trait fin derriere les points de vente, et au zoom d'ensemble
-# (le seul ou le coloriage compte) l'ecart est inferieur au pixel.
+# (le seul ou le coloriage compte) l'ecart est inferieur au pixel. Les 75 Ko
+# gagnes a 240 m ne valent pas de doubler cet ecart.
 EPSILON_DP = 0.002
 
 # --- Bandes de surface pour le repli departemental de l'estimateur ---------

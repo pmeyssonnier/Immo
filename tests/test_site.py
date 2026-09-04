@@ -256,6 +256,52 @@ class TestSite(unittest.TestCase):
             [preparer_donnees.DEPARTEMENTS[c]["nom"] for c in cote_script],
             "les noms de departements different entre le site et le script")
 
+    def test_nombre_de_departements_annonce(self):
+        """Le nombre de departements annonce au public doit etre le vrai.
+
+        Deux textes le citent et sont vus par de vraies personnes : la
+        description de la page (affichee par Google et dans les apercus de lien
+        partages) et celle du manifeste (affichee quand on ajoute l'application
+        a l'ecran d'accueil d'un telephone). Ecrits en dur, ils se periment en
+        silence a chaque departement ajoute -- c'est arrive deux fois.
+
+        Le test refuse aussi les nombres ECRITS EN TOUTES LETTRES : c'est
+        exactement cette forme qui avait echappe aux recherches automatiques,
+        puisque chercher "8" ne trouve rien dans le mot "huit".
+        """
+        import preparer_donnees  # le script vit dans scripts/
+
+        attendu = len(preparer_donnees.DEPARTEMENTS)
+
+        page = self.obtenir("index.html").decode("utf-8")
+        description_page = re.search(r'name="description"\s+content="([^"]*)"', page, re.S)
+        self.assertIsNotNone(description_page, "index.html n'a plus de description")
+
+        textes = {
+            "index.html": " ".join(description_page.group(1).split()),
+            "manifest.json": self.json("manifest.json")["description"],
+        }
+
+        NOMBRES_EN_LETTRES = ["deux", "trois", "quatre", "cinq", "six", "sept", "huit",
+                              "neuf", "dix", "onze", "douze", "treize", "quatorze",
+                              "quinze", "seize", "vingt", "trente"]
+
+        for fichier, texte in textes.items():
+            minuscules = texte.lower()
+            for mot in NOMBRES_EN_LETTRES:
+                self.assertNotRegex(
+                    minuscules, r"\b%s\s+d[eé]partements" % mot,
+                    "%s ecrit le nombre de departements en toutes lettres (« %s ») : "
+                    "impossible a rattraper automatiquement, mettre le chiffre" % (fichier, mot))
+
+            annonces = [int(n) for n in re.findall(r"(\d+)\s+d[eé]partements", minuscules)]
+            self.assertTrue(annonces,
+                            "%s n'annonce aucun nombre de departements" % fichier)
+            for annonce in annonces:
+                self.assertEqual(annonce, attendu,
+                                 "%s annonce %d departements, il y en a %d"
+                                 % (fichier, annonce, attendu))
+
     def test_extension_json_pour_les_contours(self):
         """GitHub Pages ne compresse pas les fichiers .geojson : 4x plus lourd."""
         self.assertTrue(os.path.exists(os.path.join(RACINE, "data", "communes-geo.json")))

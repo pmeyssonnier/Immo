@@ -1,7 +1,7 @@
 {
   "name": "Immo — Occitanie, PACA & Rhône-Alpes : ventes réelles et estimation",
   "short_name": "Ventes DVF",
-  "description": "Les ventes de maisons réellement enregistrées dans huit départements du sud de la France, sur carte, avec estimation par comparaison.",
+  "description": "Les ventes de maisons réellement enregistrées dans 14 départements du sud de la France, sur carte, avec estimation par comparaison.",
   "lang": "fr",
   "dir": "ltr",
   "start_url": "./",

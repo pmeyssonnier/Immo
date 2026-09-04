@@ -136,7 +136,7 @@ verifier(peinture && peinture.peints > 200 && peinture.couleurs > 20,
 verifier(await page.locator(".legende").isVisible(), "légende des prix affichée");
 
 // --- 3. la recherche sans accents ---------------------------------------
-// La recherche fouille les 8 départements d'un coup et déplie ce qu'il faut.
+// La recherche fouille tous les départements d'un coup et déplie ce qu'il faut.
 await page.fill("#champ-recherche", "nimes");
 await page.waitForTimeout(250);
 const trouves = await page.locator("#liste-communes li .nom").allInnerTexts();
