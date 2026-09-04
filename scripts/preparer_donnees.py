@@ -20,6 +20,7 @@ import argparse
 import csv
 import datetime as dt
 import gzip
+import http.client
 import io
 import json
 import math
@@ -29,6 +30,7 @@ import shutil
 import statistics
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from collections import defaultdict
@@ -206,28 +208,102 @@ def quantile(valeurs_triees, q):
 # --------------------------------------------------------------------------
 # Telechargement
 # --------------------------------------------------------------------------
+# Un passage du robot enchaine 70 telechargements (14 departements x 5 annees),
+# tous les mois. Le reseau finira par lacher sur l'un d'eux. Trois regles :
+#   1. une panne se reessaie, une reponse claire du serveur ne se reessaie pas ;
+#   2. un fichier incomplet n'est jamais confondu avec un fichier complet ;
+#   3. si la matrice (annee x departement) n'est pas pleine, on ne publie rien.
+# La regle 3 est la plus importante : des donnees anciennes mais completes valent
+# mieux que des donnees fraiches et trouees. Une estimation faite sur une serie a
+# laquelle il manque une annee reste credible ; elle est simplement fausse.
+
+TENTATIVES_MAX = 3
+ATTENTES_REESSAI = (5, 20)                      # secondes entre deux tentatives
+CODES_SANS_REESSAI = (400, 401, 403, 404, 410)  # le serveur a repondu : insister ne sert a rien
+ENTETES_HTTP = {"User-Agent": "immo-gard-ardeche/1.0"}
+MIN_MILLESIMES = 3                              # en dessous, l'indice de prix ne vaut rien
+
+# Les pannes reseau qu'il est normal de rencontrer. urllib.error.HTTPError et
+# URLError descendent d'OSError ; http.client.HTTPException couvre les reponses
+# tronquees. ValueError attrape un Content-Length illisible.
+PANNES_RESEAU = (OSError, http.client.HTTPException, ValueError)
+
+
+def attendre_avant_reessai(tentative):
+    """Pause entre deux tentatives. Isolee pour que les tests la neutralisent."""
+    if tentative - 1 < len(ATTENTES_REESSAI):
+        time.sleep(ATTENTES_REESSAI[tentative - 1])
+
+
+def supprimer_si_present(chemin):
+    try:
+        os.remove(chemin)
+    except OSError:
+        pass
+
 
 def telecharger(url, destination):
-    """Telecharge un fichier. Renvoie True si tout s'est bien passe."""
-    try:
-        requete = urllib.request.Request(url, headers={"User-Agent": "immo-gard-ardeche/1.0"})
-        with urllib.request.urlopen(requete, timeout=180) as reponse, \
-                open(destination, "wb") as sortie:
-            shutil.copyfileobj(reponse, sortie)
-        return True
-    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as erreur:
-        journal("  ... indisponible (%s)" % erreur)
-        return False
+    """Telecharge un fichier. Renvoie True si tout s'est bien passe.
+
+    Le contenu est ecrit dans un fichier ".part" : le nom definitif n'apparait
+    que si le transfert est alle jusqu'au bout ET que la taille annoncee par le
+    serveur est respectee. Une coupure en fin de transfert laisse donc un fichier
+    absent, jamais un fichier tronque qu'on prendrait pour complet.
+    """
+    partiel = destination + ".part"
+    for tentative in range(1, TENTATIVES_MAX + 1):
+        try:
+            requete = urllib.request.Request(url, headers=ENTETES_HTTP)
+            with urllib.request.urlopen(requete, timeout=180) as reponse, \
+                    open(partiel, "wb") as sortie:
+                ecrits = 0
+                while True:
+                    morceau = reponse.read(65536)
+                    if not morceau:
+                        break
+                    sortie.write(morceau)
+                    ecrits += len(morceau)
+                annonce = reponse.headers.get("Content-Length")
+            if annonce is not None and int(annonce) != ecrits:
+                raise OSError("fichier tronque : %d octets recus sur %s annonces"
+                              % (ecrits, annonce))
+            os.replace(partiel, destination)
+            return True
+        except PANNES_RESEAU as erreur:
+            supprimer_si_present(partiel)
+            definitif = (isinstance(erreur, urllib.error.HTTPError)
+                         and erreur.code in CODES_SANS_REESSAI)
+            if definitif or tentative == TENTATIVES_MAX:
+                journal("  ... indisponible (%s)" % erreur)
+                return False
+            journal("  ... echec (%s), nouvelle tentative %d/%d"
+                    % (erreur, tentative + 1, TENTATIVES_MAX))
+            attendre_avant_reessai(tentative)
+    return False
 
 
 def url_existe(url):
-    try:
-        requete = urllib.request.Request(url, method="HEAD",
-                                         headers={"User-Agent": "immo-gard-ardeche/1.0"})
-        with urllib.request.urlopen(requete, timeout=60) as reponse:
-            return reponse.status == 200
-    except Exception:
-        return False
+    """True, False, ou None quand on n'a pas pu savoir.
+
+    La distinction compte : un 404 est une reponse (le millesime n'existe pas),
+    une panne reseau n'en est pas une. Les confondre revient a publier une annee
+    de moins sans que personne ne s'en apercoive.
+    """
+    for tentative in range(1, TENTATIVES_MAX + 1):
+        try:
+            requete = urllib.request.Request(url, method="HEAD", headers=ENTETES_HTTP)
+            with urllib.request.urlopen(requete, timeout=60) as reponse:
+                return reponse.status == 200
+        except PANNES_RESEAU as erreur:
+            if (isinstance(erreur, urllib.error.HTTPError)
+                    and erreur.code in CODES_SANS_REESSAI):
+                return False
+            if tentative == TENTATIVES_MAX:
+                journal("  ... etat de %s inconnu apres %d tentatives (%s)"
+                        % (url, TENTATIVES_MAX, erreur))
+                return None
+            attendre_avant_reessai(tentative)
+    return None
 
 
 def millesimes_disponibles(nb_annees):
@@ -238,11 +314,88 @@ def millesimes_disponibles(nb_annees):
     annee_courante = dt.date.today().year
     trouvees = []
     for annee in range(annee_courante, annee_courante - 8, -1):
-        if all(url_existe(URL_DVF.format(annee=annee, dep=dep)) for dep in DEPARTEMENTS):
+        etats = dict((dep, url_existe(URL_DVF.format(annee=annee, dep=dep)))
+                     for dep in DEPARTEMENTS)
+        inconnus = sorted(dep for dep, etat in etats.items() if etat is None)
+        if inconnus:
+            raise SystemExit(
+                "ERREUR : impossible de savoir si le millesime %d existe pour le(s)\n"
+                "departement(s) %s. files.data.gouv.fr est probablement\n"
+                "indisponible. Mieux vaut ne rien publier que publier une annee de\n"
+                "moins sans le dire. Relancer le robot plus tard."
+                % (annee, ", ".join(inconnus)))
+        if all(etats.values()):
             trouvees.append(annee)
             if len(trouvees) == nb_annees:
                 break
     return sorted(trouvees)
+
+
+def tableau_de_couverture(millesimes, obtenus):
+    """Le recapitulatif lisible, repris dans _rapport.txt et le resume GitHub."""
+    lignes = ["  couverture (X = obtenu)" + "".join("%6s" % a for a in millesimes)]
+    for dep in DEPARTEMENTS:
+        cases = "".join("%6s" % ("X" if dep in obtenus[annee] else "-")
+                        for annee in millesimes)
+        lignes.append("  %-2s %-20.20s%s" % (dep, DEPARTEMENTS[dep]["nom"], cases))
+    return lignes
+
+
+def telecharger_millesimes(millesimes, dossier, telechargeur=telecharger):
+    """Telecharge la matrice (annee x departement) et refuse de la publier trouee.
+
+    Renvoie (fichiers, millesimes_reellement_obtenus). Les millesimes renvoyes
+    sont ceux dont les 14 departements ont ete telecharges : meta.json ne peut
+    donc plus annoncer une annee absente des donnees. C'est le contrat que la
+    regle I de controler() verifie de l'autre cote, sur les fichiers publies.
+
+    Le parametre "telechargeur" n'existe que pour les tests : il permet de
+    fabriquer n'importe quelle matrice de succes et d'echecs sans reseau.
+    """
+    obtenus = {}                                # annee -> {departement: chemin}
+    for annee in millesimes:
+        obtenus[annee] = {}
+        for dep in DEPARTEMENTS:
+            url = URL_DVF.format(annee=annee, dep=dep)
+            destination = os.path.join(dossier, "%s-%s.csv.gz" % (dep, annee))
+            journal("  telechargement %s %s" % (dep, annee))
+            if telechargeur(url, destination):
+                obtenus[annee][dep] = destination
+
+    for ligne in tableau_de_couverture(millesimes, obtenus):
+        journal(ligne)
+
+    # Une annee absente pour TOUS les departements est une decision de l'Etat :
+    # on la retire. Une annee absente pour une PARTIE seulement est une panne,
+    # puisque millesimes_disponibles() a deja verifie que l'URL existe partout.
+    retenus, abandonnes, trous = [], [], []
+    for annee in millesimes:
+        manquants = [dep for dep in DEPARTEMENTS if dep not in obtenus[annee]]
+        if not manquants:
+            retenus.append(annee)
+        elif len(manquants) == len(DEPARTEMENTS):
+            abandonnes.append(annee)
+        else:
+            trous.extend("%s en %s" % (dep, annee) for dep in manquants)
+
+    if trous:
+        raise SystemExit(
+            "ERREUR : telechargement incomplet, rien ne sera publie.\n"
+            "Manque(nt) apres %d tentatives : %s.\n"
+            "Les donnees actuellement en ligne restent en place, ce qui vaut mieux\n"
+            "qu'une mise a jour trouee. Relancer le robot plus tard."
+            % (TENTATIVES_MAX, ", ".join(trous)))
+    if abandonnes:
+        journal("  millesime(s) introuvable(s) partout, donc retire(s) : %s"
+                % ", ".join(str(annee) for annee in abandonnes))
+    if len(retenus) < MIN_MILLESIMES:
+        raise SystemExit(
+            "ERREUR : %d annee(s) de donnees obtenue(s), il en faut au moins %d\n"
+            "pour que l'indice de prix annuel ait un sens. Rien ne sera publie."
+            % (len(retenus), MIN_MILLESIMES))
+
+    fichiers = [obtenus[annee][dep] for annee in retenus for dep in DEPARTEMENTS]
+    return fichiers, retenus
 
 
 # --------------------------------------------------------------------------
@@ -1213,20 +1366,16 @@ def main():
         else:
             journal("Recherche des millesimes DVF disponibles...")
             millesimes = millesimes_disponibles(options.annees)
-            if len(millesimes) < 3:
+            if len(millesimes) < MIN_MILLESIMES:
                 raise SystemExit(
-                    "ERREUR : moins de 3 annees de donnees DVF trouvees.\n"
+                    "ERREUR : moins de %d annees de donnees DVF trouvees.\n"
                     "Le site files.data.gouv.fr est peut-etre indisponible, ou la\n"
-                    "structure des URL a change. Reessayer plus tard.")
+                    "structure des URL a change. Reessayer plus tard." % MIN_MILLESIMES)
+            journal("Millesimes candidats : %s" % ", ".join(map(str, millesimes)))
+            # millesimes est REAFFECTE : seules les annees reellement ingerees
+            # seront annoncees dans meta.json.
+            fichiers, millesimes = telecharger_millesimes(millesimes, dossier_temporaire)
             journal("Millesimes retenus : %s" % ", ".join(map(str, millesimes)))
-            fichiers = []
-            for annee in millesimes:
-                for dep in DEPARTEMENTS:
-                    url = URL_DVF.format(annee=annee, dep=dep)
-                    destination = os.path.join(dossier_temporaire, "%s-%s.csv.gz" % (dep, annee))
-                    journal("  telechargement %s %s" % (dep, annee))
-                    if telecharger(url, destination):
-                        fichiers.append(destination)
 
         for chemin in fichiers:
             ids = passe1_ids_maisons(chemin)

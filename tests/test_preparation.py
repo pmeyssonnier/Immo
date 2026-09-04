@@ -12,8 +12,10 @@ import random
 import shutil
 import sys
 import tempfile
+import threading
 import unittest
 from collections import defaultdict
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(RACINE, "scripts"))
@@ -503,3 +505,192 @@ class TestPertinenceDuPrixDuTerrain(unittest.TestCase):
         effet_max = prep.PRIX_TERRAIN_MIN * prep.TERRAIN_PLAFOND_REGRESSION
         self.assertGreaterEqual(effet_max, 5000,
                                 "sous ce seuil, l'ajustement est invisible dans la fourchette")
+
+
+# --------------------------------------------------------------------------
+# Telechargement (D3)
+# --------------------------------------------------------------------------
+# Un vrai serveur HTTP local, pas un faux urlopen : c'est le seul moyen de
+# prouver que Content-Length est reellement verifie et qu'un corps tronque est
+# rejete. Bibliotheque standard uniquement, port libre, aucun acces reseau.
+
+class ServeurScripte(object):
+    """Sert une liste de reponses preparees, une par requete, dans l'ordre."""
+
+    def __init__(self, reponses):
+        self.reponses = list(reponses)
+        self.recues = []
+        essai = self
+
+        class Gestionnaire(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.0"
+
+            def log_message(self, *_args):
+                pass
+
+            def _repondre(self):
+                essai.recues.append(self.path)
+                index = min(len(essai.recues) - 1, len(essai.reponses) - 1)
+                code, corps, longueur_annoncee = essai.reponses[index]
+                self.send_response(code)
+                if longueur_annoncee is not None:
+                    self.send_header("Content-Length", str(longueur_annoncee))
+                self.end_headers()
+                if corps:
+                    self.wfile.write(corps)
+
+            do_GET = _repondre
+            do_HEAD = _repondre
+
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Gestionnaire)
+        self.url = "http://127.0.0.1:%d/fichier.csv.gz" % self.httpd.server_address[1]
+
+    def __enter__(self):
+        self.fil = threading.Thread(target=self.httpd.serve_forever)
+        self.fil.daemon = True
+        self.fil.start()
+        return self
+
+    def __exit__(self, *_):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self.fil.join(timeout=5)
+
+
+class TestTelechargement(unittest.TestCase):
+    """Le reseau echoue : on reessaie, sans jamais garder un fichier incomplet."""
+
+    def setUp(self):
+        self.dossier = tempfile.mkdtemp(prefix="dvf-test-")
+        self.destination = os.path.join(self.dossier, "fichier.csv.gz")
+        # Les vraies attentes (5 s puis 20 s) rendraient la suite interminable.
+        self.attentes = prep.ATTENTES_REESSAI
+        prep.ATTENTES_REESSAI = (0, 0)
+
+    def tearDown(self):
+        prep.ATTENTES_REESSAI = self.attentes
+        shutil.rmtree(self.dossier, ignore_errors=True)
+
+    def test_succes_du_premier_coup(self):
+        corps = b"colonne\nvaleur\n"
+        with ServeurScripte([(200, corps, len(corps))]) as serveur:
+            self.assertTrue(prep.telecharger(serveur.url, self.destination))
+            self.assertEqual(len(serveur.recues), 1)
+        self.assertEqual(open(self.destination, "rb").read(), corps,
+                         "le contenu doit etre identique a l'octet pres")
+
+    def test_une_panne_passagere_est_reessayee(self):
+        corps = b"colonne\nvaleur\n"
+        with ServeurScripte([(500, b"", 0), (200, corps, len(corps))]) as serveur:
+            self.assertTrue(prep.telecharger(serveur.url, self.destination))
+            self.assertEqual(len(serveur.recues), 2,
+                             "un 500 doit declencher exactement un reessai")
+        self.assertEqual(open(self.destination, "rb").read(), corps)
+
+    def test_un_404_n_est_pas_reessaye(self):
+        with ServeurScripte([(404, b"", 0)]) as serveur:
+            self.assertFalse(prep.telecharger(serveur.url, self.destination))
+            self.assertEqual(len(serveur.recues), 1,
+                             "le serveur a repondu : insister ne sert a rien")
+
+    def test_abandon_apres_le_nombre_maximal_de_tentatives(self):
+        with ServeurScripte([(503, b"", 0)]) as serveur:
+            self.assertFalse(prep.telecharger(serveur.url, self.destination))
+            self.assertEqual(len(serveur.recues), prep.TENTATIVES_MAX)
+
+    def test_un_corps_tronque_est_rejete(self):
+        """Le piege le plus sournois : une coupure en fin de transfert."""
+        with ServeurScripte([(200, b"deb", 4096)]) as serveur:
+            self.assertFalse(prep.telecharger(serveur.url, self.destination))
+        self.assertFalse(os.path.exists(self.destination),
+                         "un fichier tronque ne doit jamais porter le nom definitif")
+        self.assertFalse(os.path.exists(self.destination + ".part"),
+                         "le fichier de travail doit etre nettoye")
+
+    def test_url_existe_distingue_l_absence_de_la_panne(self):
+        with ServeurScripte([(200, b"", 0)]) as serveur:
+            self.assertIs(prep.url_existe(serveur.url), True)
+        with ServeurScripte([(404, b"", 0)]) as serveur:
+            self.assertIs(prep.url_existe(serveur.url), False,
+                          "404 = le millesime n'existe pas")
+        with ServeurScripte([(503, b"", 0)]) as serveur:
+            self.assertIsNone(prep.url_existe(serveur.url),
+                              "panne = on ne sait pas, ce n'est pas une absence")
+
+
+class TestMatriceDeTelechargement(unittest.TestCase):
+    """La matrice (annee x departement) doit etre pleine, ou rien n'est publie."""
+
+    ANNEES = [2021, 2022, 2023, 2024, 2025]
+
+    def setUp(self):
+        self.dossier = tempfile.mkdtemp(prefix="dvf-matrice-")
+        # 70 lignes de journal par test noieraient la sortie ; ces tests portent
+        # sur ce qui est renvoye et sur le message d'erreur, pas sur le journal.
+        self.journal = prep.journal
+        prep.journal = lambda _message: None
+
+    def tearDown(self):
+        prep.journal = self.journal
+        shutil.rmtree(self.dossier, ignore_errors=True)
+
+    def telechargeur(self, trous):
+        """Fabrique un faux telechargeur qui echoue sur les couples donnes."""
+        def faux(url, destination):
+            for dep, annee in trous:
+                if "/%s/" % annee in url and url.endswith("/%s.csv.gz" % dep):
+                    return False
+            open(destination, "wb").close()
+            return True
+        return faux
+
+    def test_matrice_pleine(self):
+        fichiers, millesimes = prep.telecharger_millesimes(
+            self.ANNEES, self.dossier, self.telechargeur([]))
+        self.assertEqual(millesimes, self.ANNEES)
+        self.assertEqual(len(fichiers), len(self.ANNEES) * len(prep.DEPARTEMENTS))
+        for chemin in fichiers:
+            self.assertTrue(os.path.exists(chemin))
+
+    def test_un_trou_partiel_arrete_tout(self):
+        with self.assertRaises(SystemExit) as capture:
+            prep.telecharger_millesimes(self.ANNEES, self.dossier,
+                                        self.telechargeur([("30", 2024)]))
+        message = str(capture.exception)
+        self.assertIn("30 en 2024", message, "le couple fautif doit etre nomme")
+        self.assertIn("rien ne sera publie", message)
+
+    def test_une_annee_absente_partout_est_retiree(self):
+        trous = [(dep, 2025) for dep in prep.DEPARTEMENTS]
+        fichiers, millesimes = prep.telecharger_millesimes(
+            self.ANNEES, self.dossier, self.telechargeur(trous))
+        self.assertEqual(millesimes, [2021, 2022, 2023, 2024],
+                         "l'Etat peut decaler une publication entiere")
+        self.assertEqual(len(fichiers), 4 * len(prep.DEPARTEMENTS))
+
+    def test_trop_peu_d_annees_restantes(self):
+        trous = [(dep, annee) for dep in prep.DEPARTEMENTS for annee in (2024, 2025)]
+        with self.assertRaises(SystemExit) as capture:
+            prep.telecharger_millesimes([2023, 2024, 2025], self.dossier,
+                                        self.telechargeur(trous))
+        self.assertIn("il en faut au moins %d" % prep.MIN_MILLESIMES,
+                      str(capture.exception))
+
+    def test_les_millesimes_renvoyes_correspondent_aux_fichiers(self):
+        """Le contrat que la regle I de controler() verifie sur les donnees publiees."""
+        trous = [(dep, 2021) for dep in prep.DEPARTEMENTS]
+        fichiers, millesimes = prep.telecharger_millesimes(
+            self.ANNEES, self.dossier, self.telechargeur(trous))
+        annees_des_fichiers = set(
+            int(os.path.basename(c).split("-")[1].split(".")[0]) for c in fichiers)
+        self.assertEqual(annees_des_fichiers, set(millesimes),
+                         "meta.json ne doit jamais annoncer une annee absente des donnees")
+
+    def test_le_tableau_de_couverture_montre_les_trous(self):
+        obtenus = dict((annee, dict((dep, "x") for dep in prep.DEPARTEMENTS))
+                       for annee in self.ANNEES)
+        del obtenus[2024]["30"]
+        lignes = prep.tableau_de_couverture(self.ANNEES, obtenus)
+        ligne_gard = [l for l in lignes if l.startswith("  30 ")][0]
+        self.assertEqual(ligne_gard.count("X"), 4)
+        self.assertEqual(ligne_gard.count("-"), 1)
