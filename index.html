@@ -7,6 +7,19 @@
   <meta name="description" content="Les ventes de maisons réellement enregistrées dans
         14 départements du sud de la France, sur carte, avec estimation par comparaison.">
 
+  <!-- Politique de sécurité du contenu.
+       « script-src 'self' » est la ligne qui compte : elle interdit au
+       navigateur d'exécuter le moindre script venu d'ailleurs, ou glissé dans
+       une page par un texte mal échappé. C'est aussi la garantie qu'aucune
+       bibliothèque distante ne se réintroduit : Leaflet est copié dans le dépôt.
+       « unsafe-inline » n'est accordé qu'aux STYLES, parce que la liste et la
+       légende posent des couleurs via style="background:...". Un style injecté
+       ne peut pas exécuter de code ; un script, si. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none';
+        script-src 'self'; style-src 'self' 'unsafe-inline';
+        img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self';
+        manifest-src 'self'; base-uri 'none'; form-action 'none'">
+
   <!-- Icônes et manifeste. Tous les chemins sont RELATIFS : le site est publié
        dans un sous-dossier (…/Immo/), donc un chemin commençant par une barre
        oblique pointerait ailleurs et ne trouverait rien, sans message d'erreur.

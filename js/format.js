@@ -36,6 +36,26 @@ export function sansAccents(texte) {
   return (texte || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 }
 
+/**
+ * Rend un texte inoffensif dans du HTML.
+ *
+ * La liste et les infobulles sont construites en assemblant des chaines de
+ * caracteres, puis posees dans la page via innerHTML. Tout texte qui n'a pas
+ * ete fabrique par ce fichier doit passer par ici : sinon, taper
+ * `<img src=x onerror=...>` dans la recherche executerait du code.
+ *
+ * L'esperluette est traitee EN PREMIER, sans quoi le "&" de "&lt;" produit a
+ * l'etape suivante serait echappe a son tour et s'afficherait tel quel.
+ */
+export function echapper(texte) {
+  return String(texte === null || texte === undefined ? "" : texte)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 /** Petite barre d'etoiles de pertinence (0 a 5). */
 export function etoiles(rapport) {
   const pleines = Math.max(1, Math.min(5, Math.round(rapport * 5)));

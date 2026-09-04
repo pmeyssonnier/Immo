@@ -256,6 +256,32 @@ class TestSite(unittest.TestCase):
             [preparer_donnees.DEPARTEMENTS[c]["nom"] for c in cote_script],
             "les noms de departements different entre le site et le script")
 
+    def test_politique_de_securite_du_contenu(self):
+        """La CSP est la deuxieme barriere contre l'injection de code.
+
+        Verifie en navigateur (tests/verification_navigateur.mjs) : sans elle et
+        sans echappement, taper une balise <img onerror=...> dans la recherche
+        change reellement le titre de la page. Avec la CSP seule, la balise est
+        inseree mais le code n'est PAS execute.
+        """
+        entete = self.obtenir("index.html").decode("utf-8").split("<body")[0]
+        politique = re.search(
+            r'http-equiv="Content-Security-Policy"\s+content="([^"]*)"', entete, re.S)
+        self.assertIsNotNone(politique, "index.html n'a plus de politique de securite")
+        regles = " ".join(politique.group(1).split())
+
+        self.assertIn("script-src 'self'", regles,
+                      "c'est LA regle qui empeche l'execution de code injecte")
+        self.assertNotIn("script-src 'self' 'unsafe-inline'", regles,
+                         "unsafe-inline sur les scripts annulerait toute la protection")
+        self.assertNotIn("unsafe-eval", regles)
+        self.assertIn("default-src 'none'", regles,
+                      "tout doit etre interdit par defaut, puis rouvert explicitement")
+        # Le fond de carte est la SEULE origine exterieure autorisee.
+        for origine in re.findall(r"https?://[^\s;]+", regles):
+            self.assertEqual(origine, "https://tile.openstreetmap.org",
+                             "origine exterieure inattendue dans la CSP : " + origine)
+
     def test_nombre_de_departements_annonce(self):
         """Le nombre de departements annonce au public doit etre le vrai.
 

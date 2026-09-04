@@ -7,6 +7,7 @@
 // suffit de suivre les actions ci-dessous.
 
 import { CONFIG } from "./config.js";
+import { echapper } from "./format.js";
 import { chargerAdjacence, chargerBandes, chargerBase, chargerVentes } from "./donnees.js";
 import { estimer, estimerParBandes } from "./estimation.js";
 import * as liste from "./liste.js";
@@ -185,7 +186,7 @@ function afficherErreurFatale(erreur) {
   document.getElementById("chargement").innerHTML = `
     <div class="erreur-fatale">
       <h2>L'application n'a pas pu charger ses données</h2>
-      <p><strong>${erreur.message}</strong></p>
+      <p><strong>${echapper(erreur.message)}</strong></p>
       <p>Si vous avez ouvert le fichier <code>index.html</code> par un double-clic,
       c'est normal : votre navigateur interdit à une page locale de lire des
       fichiers voisins (règle de sécurité, rien à voir avec l'application).</p>

@@ -1,7 +1,7 @@
 // Panneau de gauche : la recherche et la liste des communes.
 
 import { CONFIG } from "./config.js";
-import { eurosParM2, nombre, sansAccents } from "./format.js";
+import { echapper, eurosParM2, nombre, sansAccents } from "./format.js";
 import { couleurPrix } from "./config.js";
 
 let champRecherche = null;
@@ -105,10 +105,10 @@ export function rendre(etat) {
     const medianeDep = infosDep ? infosDep.prix_m2_median : null;
     const ventesDep = infosDep ? infosDep.nb_ventes : 0;
 
-    morceaux.push(`<details data-dep="${dep}"${ouvert ? " open" : ""}>
+    morceaux.push(`<details data-dep="${echapper(dep)}"${ouvert ? " open" : ""}>
       <summary>
         <span class="pastille" style="background:${couleurPrix(medianeDep, seuils)}"></span>
-        <span class="nom-dep" title="${nomDep} — ${liste.length} communes">${nomDep}</span>
+        <span class="nom-dep" title="${echapper(nomDep)} — ${liste.length} communes">${echapper(nomDep)}</span>
         <span class="stats-dep">
           <strong>${medianeDep === null ? "—" : eurosParM2(medianeDep)}</strong>
           <em>${nombre(ventesDep)} vente${ventesDep > 1 ? "s" : ""}</em>
@@ -121,9 +121,9 @@ export function rendre(etat) {
       const prix = commune.m2_med === null
         ? `<span class="sans-donnees">données insuffisantes</span>`
         : eurosParM2(commune.m2_med);
-      morceaux.push(`<li${actif} data-code="${commune.code}" tabindex="0">
+      morceaux.push(`<li${actif} data-code="${echapper(commune.code)}" tabindex="0">
         <span class="pastille" style="background:${couleur}"></span>
-        <span class="nom">${commune.nom}</span>
+        <span class="nom">${echapper(commune.nom)}</span>
         <span class="stats">${prix}<em>${nombre(commune.n)} vente${commune.n > 1 ? "s" : ""}</em></span>
       </li>`);
     }
@@ -131,7 +131,9 @@ export function rendre(etat) {
   }
 
   if (!morceaux.length) {
-    morceaux.push(`<p class="vide">Aucune commune ne correspond à « ${etat.recherche} ».</p>`);
+    // La saisie de l'utilisateur : le seul texte vraiment quelconque de
+    // toute l'application, donc le point d'injection le plus exposé.
+    morceaux.push(`<p class="vide">Aucune commune ne correspond à « ${echapper(etat.recherche)} ».</p>`);
   }
   conteneurListe.innerHTML = morceaux.join("");
 

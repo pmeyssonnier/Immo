@@ -1,6 +1,6 @@
 // Panneau de droite : fiche de la commune + estimateur + ventes comparables.
 
-import { euros, eurosParM2, etoiles, moisEnTexte, nombre, surface } from "./format.js";
+import { echapper, euros, eurosParM2, etoiles, moisEnTexte, nombre, surface } from "./format.js";
 
 let racineElement = null;
 let actionsElement = null;
@@ -74,7 +74,7 @@ function lancer() {
 
 function afficherErreur(message) {
   const zone = racineElement.querySelector("#resultat-estimation");
-  if (zone) zone.innerHTML = `<p class="erreur">${message}</p>`;
+  if (zone) zone.innerHTML = `<p class="erreur">${echapper(message)}</p>`;
 }
 
 function copierSynthese() {
@@ -87,7 +87,13 @@ function copierSynthese() {
   }).catch(() => afficherErreur("La copie automatique a échoué : sélectionnez le texte à la main."));
 }
 
-/** Texte prêt à coller dans un avis de valeur. */
+/**
+ * Texte prêt à coller dans un avis de valeur.
+ *
+ * Volontairement NON échappé : cette chaîne part dans le presse-papier
+ * (clipboard.writeText), pas dans la page. L'échapper collerait « &#39; » à la
+ * place des apostrophes dans le document de l'utilisateur.
+ */
 function construireSynthese(commune, parametres, resultat, meta) {
   const lignes = [
     `Estimation indicative — ${commune.nom} (${commune.code})`,
@@ -225,8 +231,8 @@ export function rendre(etat) {
   racineElement.innerHTML = `
     <header class="entete-panneau">
       <div>
-        <h2>${commune.nom}</h2>
-        <p class="sous-titre">${etat.meta.departements[commune.dep].nom} · ${commune.code}</p>
+        <h2>${echapper(commune.nom)}</h2>
+        <p class="sous-titre">${echapper(etat.meta.departements[commune.dep].nom)} · ${echapper(commune.code)}</p>
       </div>
       <button type="button" id="fermer-panneau" aria-label="Fermer">×</button>
     </header>

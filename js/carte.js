@@ -10,7 +10,7 @@
 // pas, les contours restent lisibles et l'application reste utilisable.
 
 import { CONFIG, couleurPrix } from "./config.js";
-import { euros, eurosParM2, moisEnTexte, nombre, surface } from "./format.js";
+import { echapper, euros, eurosParM2, moisEnTexte, nombre, surface } from "./format.js";
 
 let carte = null;
 let coucheCommunes = null;
@@ -68,7 +68,7 @@ function contenuPopup(vente) {
       <dt>Vendue</dt><dd>${moisEnTexte(vente.t, anneeOrigine)}</dd>
       <dt>Surface</dt><dd>${surface(vente.sbati)}${vente.pieces ? " · " + vente.pieces + " pièces" : ""}</dd>
       <dt>Terrain</dt><dd>${vente.sterr ? surface(vente.sterr) : "aucun"}</dd>
-      <dt>Adresse</dt><dd>${vente.adresse || "non renseignée"}</dd>
+      <dt>Adresse</dt><dd>${echapper(vente.adresse) || "non renseignée"}</dd>
     </dl>
   </div>`;
 }
@@ -178,7 +178,7 @@ function creerCoucheCommunes(etat, actions) {
       const commune = communesParCode.get(code);
       couche.bindTooltip(
         commune
-          ? `<strong>${commune.nom}</strong><br>${commune.m2_med === null
+          ? `<strong>${echapper(commune.nom)}</strong><br>${commune.m2_med === null
             ? "données insuffisantes" : eurosParM2(commune.m2_med)}`
           : code,
         { sticky: true },

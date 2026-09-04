@@ -34,6 +34,15 @@ const page = await navigateur.newPage({ viewport: { width: 1440, height: 900 } }
 page.on("pageerror", (e) => erreurs.push("pageerror: " + e.message));
 page.on("console", (m) => { if (m.type() === "error") erreurs.push("console: " + m.text()); });
 
+// Toute violation de la politique de sécurité du contenu est enregistrée :
+// une CSP trop stricte casserait l'application en silence.
+const violationsCsp = [];
+await page.addInitScript(() => {
+  window.__violationsCsp = [];
+  document.addEventListener("securitypolicyviolation", (e) => {
+    window.__violationsCsp.push(`${e.violatedDirective} ← ${e.blockedURI}`);
+  });
+});
 await page.goto(`http://localhost:${PORT}${BASE}`, { waitUntil: "networkidle" });
 await page.waitForSelector("#application:not([hidden])", { timeout: 20000 });
 
@@ -306,6 +315,30 @@ verifier(manifeste.urlDemarrage === BASE,
   `start_url résolu → ${manifeste.urlDemarrage} (attendu ${BASE})`);
 verifier(manifeste.icons.length >= 3 && manifeste.icons.some((i) => /maskable/.test(i.purpose || "")),
   `${manifeste.icons.length} icônes dans le manifeste, dont une « maskable »`);
+
+// --- 6 quater. la recherche ne peut pas injecter de code -------------------
+const ATTAQUE = '<img src=x onerror="document.title=\'XSS\'">';
+const titreAvant = await page.title();
+await page.fill("#champ-recherche", ATTAQUE);
+await page.waitForTimeout(500);
+const imagesInjectees = await page.locator("#liste-communes img").count();
+verifier(imagesInjectees === 0,
+  `aucune balise injectée par la recherche (${imagesInjectees} trouvée(s))`);
+verifier((await page.title()) === titreAvant,
+  `le titre de la page est intact (« ${await page.title()} »)`);
+// et le texte tapé doit rester VISIBLE : on échappe, on ne supprime pas
+const texteVide = await page.locator("#liste-communes .vide").innerText().catch(() => "");
+verifier(texteVide.includes("<img"),
+  `la saisie est réaffichée telle quelle à l'utilisateur : ${texteVide.slice(0, 60)}…`);
+await page.fill("#champ-recherche", "");
+await page.waitForTimeout(300);
+
+// --- 6 quinquies. la politique de sécurité ne casse rien ------------------
+const violations = await page.evaluate(() => window.__violationsCsp || []);
+const bloquantes = violations.filter((v) => !/^img-src/.test(v));  // les tuiles sont hors ligne ici
+verifier(bloquantes.length === 0, bloquantes.length
+  ? `la CSP bloque des ressources nécessaires : ${bloquantes.join(", ")}`
+  : `aucune ressource nécessaire bloquée par la politique de sécurité`);
 
 // --- 7. aucune erreur JavaScript -----------------------------------------
 const vraiesErreurs = erreurs.filter((e) => !/tile|ERR_|net::|Failed to load resource/i.test(e));
