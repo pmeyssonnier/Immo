@@ -376,6 +376,65 @@ if (!venteVisee) {
   await page.waitForTimeout(1500);
 }
 
+// --- 4 ter. chercher une adresse ------------------------------------------
+// Deux chemins, et le second ne doit rien coûter tant qu'on ne s'en sert pas :
+// l'annuaire des voies pèse 0,8 Mo, soit deux fois le chargement du site.
+const annuaireDemande = [];
+page.on("request", (r) => { if (r.url().includes("voies.json")) annuaireDemande.push(r.url()); });
+
+// a) dans la commune ouverte : ses ventes sont déjà là, la réponse est gratuite
+await page.fill("#champ-recherche", "rue du docteur paradis");
+await page.waitForTimeout(900);
+const ventesDeLaRue = await page.locator("#liste-communes li[data-vente]").count();
+verifier(ventesDeLaRue > 1,
+  `une rue de Nîmes donne ses ventes (${ventesDeLaRue} lignes)`);
+const premiereVente = await page.locator("#liste-communes li[data-vente]").first().innerText();
+verifier(/DOCTEUR PARADIS/i.test(premiereVente) && /€/.test(premiereVente),
+  `un résultat est une vente réelle, avec son prix : ${premiereVente.replace(/\s+/g, " ").slice(0, 60)}`);
+verifier(annuaireDemande.length === 0,
+  "l'annuaire n'est PAS téléchargé quand la commune ouverte répond déjà");
+
+// b) l'abréviation DVF doit être transparente : « chemin » trouve « CHE »
+await page.fill("#champ-recherche", "chemin de russan");
+await page.waitForTimeout(900);
+const parMotComplet = await page.locator("#liste-communes li[data-vente]").count();
+verifier(parMotComplet > 0,
+  `« chemin » retrouve les adresses écrites « CHE » (${parMotComplet} ventes)`);
+
+// c) cliquer une vente ouvre sa bulle sur la carte
+await page.click("#liste-communes li[data-vente]");
+await page.waitForTimeout(1200);
+const bulleVente = await page.locator(".leaflet-popup").count();
+verifier(bulleVente > 0, "cliquer une vente trouvée par son adresse l'ouvre sur la carte");
+
+// d) sans commune choisie, l'annuaire se télécharge — et seulement alors
+await page.click("#fermer-panneau");
+await page.waitForTimeout(500);
+await page.fill("#champ-recherche", "avenue jean jaures nimes");
+await page.waitForTimeout(4000);
+verifier(annuaireDemande.length === 1,
+  `l'annuaire est téléchargé une seule fois, à la demande (${annuaireDemande.length})`);
+const voies = await page.locator("#liste-communes li .nom").allInnerTexts();
+verifier(voies.length > 0 && voies.every((v) => /JEAN\s*JAURES/i.test(v)),
+  `préciser la ville ne laisse que la bonne voie (${voies.length} : ${voies.slice(0, 2).join(", ")})`);
+const villes = await page.locator("#liste-communes li .dep-resultat").allInnerTexts();
+verifier(villes.every((v) => /Nîmes/.test(v)),
+  `chaque voie indique sa commune (${villes[0] || "—"})`);
+
+// e) et le parcours complet aboutit sur la vente elle-même
+await page.click("#liste-communes li:first-child");
+await page.waitForTimeout(2500);
+const titreAdresse = await page.locator("#panneau-droit h2").innerText();
+const ventesApres = await page.locator("#liste-communes li[data-vente]").count();
+verifier(titreAdresse === "Nîmes" && ventesApres > 0,
+  `cliquer une voie ouvre la commune ET montre ses ventes (${titreAdresse}, ${ventesApres})`);
+
+// on remet la recherche et la commune dans l'état attendu par la suite du test
+await page.fill("#champ-recherche", "nimes");
+await page.waitForTimeout(300);
+await page.click("#liste-communes li[data-code=\"30189\"]");
+await page.waitForTimeout(1500);
+
 verifier(await page.locator("#avertissement-fond").isVisible(),
   "avertissement « fond de carte indisponible » affiché ET conservé");
 await page.screenshot({ path: SP + "/apercu-1-carte.png" });

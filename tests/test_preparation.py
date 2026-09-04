@@ -754,3 +754,44 @@ class TestSondageDesMillesimes(unittest.TestCase):
         with self.assertRaises(SystemExit) as capture:
             prep.millesimes_disponibles(3)
         self.assertIn("departement 07", str(capture.exception))
+
+
+class TestAnnuaireDesVoies(unittest.TestCase):
+    """L'annuaire « libelle de voie -> communes », telecharge a la demande."""
+
+    def test_le_numero_de_voirie_est_retire(self):
+        for adresse, attendu in [("12 RUE AMPERE", "RUE AMPERE"),
+                                 ("12 B RUE AMPERE", "RUE AMPERE"),
+                                 ("3038 RTE DE COURBESSAC", "RTE DE COURBESSAC"),
+                                 ("LE VILLAGE", "LE VILLAGE")]:
+            self.assertEqual(prep.libelle_de_voie(adresse), attendu, adresse)
+
+    def test_la_ponctuation_de_tete_est_retiree(self):
+        # Relevee dans les vraies donnees : « - AV MARECHAL KOENIG », « . AV DE
+        # SAINT CASSIEN ». Elle n'appartient pas au nom de la voie.
+        self.assertEqual(prep.libelle_de_voie("- AV MARECHAL KOENIG"), "AV MARECHAL KOENIG")
+        self.assertEqual(prep.libelle_de_voie(". AV DE SAINT CASSIEN"), "AV DE SAINT CASSIEN")
+
+    def test_une_adresse_vide_ne_fait_rien_planter(self):
+        for rien in ("", None, "   ", "12", "- "):
+            self.assertEqual(prep.libelle_de_voie(rien), "")
+
+    def test_l_annuaire_regroupe_les_communes_par_voie(self):
+        par_commune = {
+            "30189": [{"adresse": "12 RUE AMPERE"}, {"adresse": "40 RUE AMPERE"},
+                      {"adresse": "3 CHE DES OLIVIERS"}],
+            "83137": [{"adresse": "7 RUE AMPERE"}],
+            "84007": [{"adresse": ""}],
+        }
+        annuaire = prep.construire_index_voies(par_commune)
+        self.assertEqual(annuaire["champs"], ["voie", "communes"])
+        par_voie = dict((voie, codes) for voie, codes in annuaire["valeurs"])
+        self.assertEqual(par_voie["RUE AMPERE"], ["30189", "83137"],
+                         "une meme voie doit citer toutes ses communes, triees")
+        self.assertEqual(par_voie["CHE DES OLIVIERS"], ["30189"])
+        self.assertNotIn("", par_voie, "une adresse vide ne cree pas de voie")
+
+    def test_l_annuaire_est_trie(self):
+        par_commune = {"30189": [{"adresse": "1 " + v} for v in ("RUE Z", "RUE A", "RUE M")]}
+        voies = [v for v, _ in prep.construire_index_voies(par_commune)["valeurs"]]
+        self.assertEqual(voies, sorted(voies), "le tri est ce que le controle K verifie")

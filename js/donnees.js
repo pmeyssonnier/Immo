@@ -78,6 +78,27 @@ export async function chargerBandes(departement) {
   return lireJson("data/bandes-" + departement + ".json");
 }
 
+/**
+ * L'annuaire des voies : « libelle de voie -> communes ou elle existe ».
+ *
+ * Il pese 0,8 Mo compresse, soit deux fois le chargement initial complet du
+ * site. Il n'est donc JAMAIS telecharge au demarrage : seulement le jour ou
+ * l'on tape une adresse sans avoir choisi de ville. La promesse est gardee,
+ * pas le resultat : deux frappes rapprochees ne declenchent qu'un seul
+ * telechargement, et un echec n'est pas mis en cache -- on pourra reessayer.
+ */
+let annuaireEnCours = null;
+
+export async function chargerVoies() {
+  if (!annuaireEnCours) {
+    annuaireEnCours = lireJson("data/voies.json").catch((erreur) => {
+      annuaireEnCours = null;
+      throw erreur;
+    });
+  }
+  return annuaireEnCours;
+}
+
 function decoderVentes(table, codeCommune) {
   return table.ventes.map((ligne) => {
     const vente = {};

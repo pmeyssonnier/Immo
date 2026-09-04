@@ -42,6 +42,7 @@ jobs:
           node --test
           tests/test_estimation.mjs
           tests/test_recherche.mjs
+          tests/test_adresses.mjs
           tests/test_format.mjs
           tests/test_donnees.mjs
           tests/test_demandes.mjs

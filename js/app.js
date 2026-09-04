@@ -8,7 +8,9 @@
 
 import { CONFIG } from "./config.js";
 import { echapper } from "./format.js";
-import { chargerAdjacence, chargerBandes, chargerBase, chargerVentes } from "./donnees.js";
+import { chargerAdjacence, chargerBandes, chargerBase, chargerVentes, chargerVoies }
+  from "./donnees.js";
+import { chercherVentes, indexerVoies, ressembleAUneAdresse } from "./adresses.js";
 import { creerSuiviDeDemandes } from "./demandes.js";
 import { estimer, estimerParBandes } from "./estimation.js";
 import * as liste from "./liste.js";
@@ -26,6 +28,10 @@ const etat = {
   bandesParDepartement: {},
 
   recherche: "",
+  // L'annuaire des voies, charge a la demande : voir assurerAnnuaireDesVoies.
+  annuaireVoies: null,
+  annuaireEnCours: false,
+  erreurAnnuaire: null,
   communeSelectionnee: null,
   zoom: CONFIG.ZOOM_INITIAL,
   bbox: null,
@@ -169,9 +175,42 @@ async function lancerEstimation(parametres) {
 // --------------------------------------------------------------------------
 let commandesCarte = null;
 
+/**
+ * Telecharge l'annuaire des voies, mais seulement s'il va servir.
+ *
+ * Il pese 0,8 Mo : le charger au demarrage doublerait le poids du site pour
+ * une fonction dont on ne se sert pas a chaque visite. On attend donc que la
+ * saisie ressemble a une adresse -- un numero de voirie en tete, ou un mot
+ * comme « rue », « chemin », « impasse ». Une fois charge, il reste en memoire.
+ *
+ * Volontairement SANS numero de demande : cette fonction ne fait qu'ajouter
+ * une donnee de reference a l'etat, elle n'affiche rien qui puisse se retrouver
+ * sous le mauvais titre.
+ */
+async function assurerAnnuaireDesVoies(texte) {
+  if (etat.annuaireVoies || etat.annuaireEnCours) return;
+  if (!ressembleAUneAdresse(texte)) return;
+  // Si la commune ouverte repond deja, il n'y a rien a telecharger : ses
+  // ventes sont la. On ne paie l'annuaire que lorsqu'il sert vraiment.
+  if (etat.communeSelectionnee) {
+    const ventes = etat.ventesParCommune[etat.communeSelectionnee];
+    const ouverte = etat.communes.find((c) => c.code === etat.communeSelectionnee);
+    if (ventes && chercherVentes(ventes, texte, 1, ouverte && ouverte.nom).length) return;
+  }
+  majEtat({ annuaireEnCours: true, erreurAnnuaire: null });
+  try {
+    const table = await chargerVoies();
+    majEtat({ annuaireVoies: indexerVoies(table), annuaireEnCours: false });
+  } catch (erreur) {
+    // Une panne ici ne doit pas passer pour « cette adresse n'existe pas ».
+    majEtat({ annuaireEnCours: false, erreurAnnuaire: erreur.message });
+  }
+}
+
 const actions = {
   changerRecherche(texte) {
     majEtat({ recherche: texte });
+    assurerAnnuaireDesVoies(texte);
   },
 
   async selectionnerCommune(code) {
@@ -248,6 +287,12 @@ const actions = {
 
   voirVente(vente) {
     if (commandesCarte && vente) commandesCarte.ouvrirVente(vente);
+  },
+
+  /** Clic sur une vente trouvee par son adresse, dans la liste de gauche. */
+  voirVenteDeLaListe(code, indice) {
+    const ventes = etat.ventesParCommune[code];
+    if (ventes && ventes[indice] && commandesCarte) commandesCarte.ouvrirVente(ventes[indice]);
   },
 };
 

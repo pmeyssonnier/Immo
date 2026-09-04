@@ -334,6 +334,35 @@ class TestSite(unittest.TestCase):
             self.assertEqual(origine, "https://tile.openstreetmap.org",
                              "origine exterieure inattendue dans la CSP : " + origine)
 
+    def test_annuaire_des_voies_servi_et_coherent(self):
+        """L'annuaire des adresses, telecharge a la demande par le site.
+
+        Il n'est PAS charge au demarrage : il pese a lui seul deux fois le
+        reste. Ce test verifie qu'il est bien servi quand on le demande, et
+        que les communes qu'il cite existent.
+        """
+        voies = self.json("data/voies.json")
+        self.assertEqual(voies["champs"], ["voie", "communes"])
+        self.assertGreater(len(voies["valeurs"]), 50_000,
+                           "l'annuaire doit couvrir les quatorze departements")
+        communes = self.json("data/communes.json")
+        codes = {ligne[0] for ligne in communes["valeurs"]}
+        for voie, cites in voies["valeurs"][:2000]:
+            self.assertTrue(voie.strip(), "libelle de voie vide")
+            self.assertTrue(cites, "%s n'est rattachee a aucune commune" % voie)
+            for code in cites:
+                self.assertIn(code, codes, "commune inconnue dans l'annuaire : " + code)
+
+    def test_annuaire_des_voies_absent_du_chargement_initial(self):
+        """Verrouille la promesse : 0,8 Mo qu'on ne paie que si l'on s'en sert."""
+        page = self.obtenir("index.html").decode("utf-8")
+        self.assertNotIn("voies.json", page,
+                         "l'annuaire ne doit pas etre reference dans la page")
+        app = open(os.path.join(RACINE, "js", "app.js"), encoding="utf-8").read()
+        self.assertIn("assurerAnnuaireDesVoies", app)
+        self.assertIn("ressembleAUneAdresse", app,
+                      "le telechargement doit rester conditionne a la forme de la saisie")
+
     def test_le_robot_publie_sur_une_branche_explicite(self):
         """Le robot ne doit jamais decider tout seul ou il ecrit les donnees.
 

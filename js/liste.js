@@ -1,9 +1,10 @@
 // Panneau de gauche : la recherche et la liste des communes.
 
 import { CONFIG, nomDepartement } from "./config.js";
-import { echapper, eurosParM2, nombre } from "./format.js";
+import { echapper, euros, eurosParM2, moisEnTexte, nombre, surface } from "./format.js";
 import { couleurPrix } from "./config.js";
 import { chercher, indexerCommunes, LIMITE_RESULTATS } from "./recherche.js";
+import { chercherVentes, chercherVoies, ressembleAUneAdresse } from "./adresses.js";
 
 let champRecherche = null;
 let conteneurListe = null;
@@ -36,8 +37,15 @@ export function initialiser(racine, actions) {
   });
 
   conteneurListe.addEventListener("click", (evenement) => {
+    // Une ligne de vente montre le bien sur la carte ; une ligne de commune
+    // l'ouvre. Les deux portent data-code, l'indice de vente les distingue.
     const ligne = evenement.target.closest("[data-code]");
-    if (ligne) actions.selectionnerCommune(ligne.dataset.code);
+    if (!ligne) return;
+    if (ligne.dataset.vente !== undefined) {
+      actions.voirVenteDeLaListe(ligne.dataset.code, Number(ligne.dataset.vente));
+    } else {
+      actions.selectionnerCommune(ligne.dataset.code);
+    }
   });
 
   // On note ce que l'utilisateur ouvre ou ferme, pour le restituer au prochain
@@ -91,6 +99,34 @@ function ligneCommune(commune, etat, seuils, nomDep) {
     <span class="pastille" style="background:${couleurPrix(commune.m2_med, seuils)}"></span>
     <span class="nom">${echapper(commune.nom)}</span>${departement}
     <span class="stats">${prix}<em>${nombre(commune.n)} vente${commune.n > 1 ? "s" : ""}</em></span>
+  </li>`;
+}
+
+/**
+ * Une ligne de vente : c'est un bien reel, avec son prix et sa date.
+ *
+ * data-vente porte l'indice de la vente dans le fichier de la commune : c'est
+ * ce qui permet de la retrouver au clic sans la recopier dans le document.
+ */
+function ligneVente(commune, vente, indice, seuils, anneeOrigine) {
+  const prixM2 = vente.sbati ? Math.round(vente.prix / vente.sbati) : null;
+  return `<li data-code="${echapper(commune.code)}" data-vente="${indice}" tabindex="0">
+    <span class="pastille" style="background:${couleurPrix(prixM2, seuils)}"></span>
+    <span class="nom">${echapper(vente.adresse || "adresse non renseignée")}</span>
+    <span class="dep-resultat">${echapper(moisEnTexte(vente.t, anneeOrigine))}
+      · ${surface(vente.sbati)}</span>
+    <span class="stats">${euros(vente.prix)}<em>${prixM2 === null ? "—" : eurosParM2(prixM2)}</em></span>
+  </li>`;
+}
+
+/** Une ligne de voie : elle dit ou aller, pas ce qu'on y trouvera. */
+function ligneVoie(voie, commune, seuils) {
+  return `<li data-code="${echapper(commune.code)}" tabindex="0">
+    <span class="pastille" style="background:${couleurPrix(commune.m2_med, seuils)}"></span>
+    <span class="nom">${echapper(voie)}</span>
+    <span class="dep-resultat">${echapper(commune.nom)}
+      · ${echapper(nomDepartement(commune.dep))}</span>
+    <span class="stats"><em>${nombre(commune.n)} vente${commune.n > 1 ? "s" : ""}</em></span>
   </li>`;
 }
 
@@ -168,7 +204,16 @@ function texteDuCompteur(nbTrouves, nbAffiches) {
 export function rendre(etat) {
   if (!conteneurListe || !etat.communes.length) return;
 
-  const empreinte = [etat.recherche, etat.communeSelectionnee, etat.communes.length].join("\u0001");
+  // L'empreinte inclut l'annuaire et le NOMBRE de ventes chargees : sans eux,
+  // un resultat qui arrive apres la frappe ne s'afficherait jamais, puisque
+  // rendre() sortirait en avance.
+  const ventesChargees = etat.communeSelectionnee
+    ? (etat.ventesParCommune[etat.communeSelectionnee] || []).length
+    : 0;
+  const empreinte = [etat.recherche, etat.communeSelectionnee, etat.communes.length,
+                     ventesChargees, etat.annuaireVoies ? "annuaire" : "",
+                     etat.annuaireEnCours ? "attente" : "",
+                     etat.erreurAnnuaire || ""].join("\u0001");
   if (empreinte === derniereEmpreinte) return;
   const selectionSeuleAChange = derniereEmpreinte !== null
     && derniereEmpreinte.split("\u0001")[0] === etat.recherche;
@@ -178,13 +223,65 @@ export function rendre(etat) {
   const seuils = etat.meta.seuils_couleurs || [];
   const saisie = etat.recherche.trim();
 
-  // On demande TOUS les resultats pour pouvoir annoncer le vrai nombre, puis
-  // on n'affiche que les premiers. Le classement porte de toute facon sur
-  // l'ensemble : il n'y a rien a economiser en tronquant plus tot.
+  // On demande TOUS les resultats de communes pour pouvoir annoncer le vrai
+  // nombre, et pour savoir si une commune repond -- ce qui arbitre entre la
+  // liste des communes et celle des adresses.
   const tous = saisie ? chercher(index(etat.communes), saisie, Infinity) : null;
 
+  // --- 1. une adresse, dans la commune ouverte ---------------------------
+  // Ses ventes sont deja telechargees : la reponse est immediate, et c'est la
+  // seule ou l'on peut montrer le prix sans rien charger de plus.
+  const ventesOuvertes = etat.communeSelectionnee
+    ? (etat.ventesParCommune[etat.communeSelectionnee] || null)
+    : null;
+  const communeOuverte = etat.communeSelectionnee
+    ? etat.communes.find((c) => c.code === etat.communeSelectionnee)
+    : null;
+  // Les ventes de la commune ouverte ne passent devant les communes que si la
+  // saisie ressemble vraiment a une adresse, ou si aucune commune ne repond.
+  // Sans cette nuance, taper « uzes » avec Nimes ouverte montrait les ventes de
+  // la route d'Uzes au lieu de la ville d'Uzes.
+  const candidatesVentes = (saisie && ventesOuvertes && communeOuverte)
+    ? chercherVentes(ventesOuvertes, saisie, undefined, communeOuverte.nom)
+    : [];
+  const ventesTrouvees = candidatesVentes.length
+    && (ressembleAUneAdresse(saisie) || !tous || !tous.length)
+    ? candidatesVentes : [];
+
+  // --- 2. une adresse, sans commune choisie ------------------------------
+  const voiesTrouvees = (saisie && !ventesTrouvees.length && etat.annuaireVoies
+                         && ressembleAUneAdresse(saisie))
+    ? chercherVoies(etat.annuaireVoies, saisie, new Map(etat.communes.map((c) => [c.code, c])))
+    : [];
+
   let morceaux;
-  if (tous === null) {
+  if (ventesTrouvees.length) {
+    const anneeOrigine = etat.meta.annee_origine || 2020;
+    // « dans cette rue » et non « à cette adresse » : preciser un numero ne
+    // masque pas les autres, il les classe seulement derriere -- c'est ce qui
+    // permet de comparer un bien a ses voisins immediats.
+    compteur.textContent = `${nombre(ventesTrouvees.length)} vente`
+      + `${ventesTrouvees.length > 1 ? "s" : ""} dans cette rue · ${communeOuverte.nom}`;
+    morceaux = ["<ul class=\"resultats\">"];
+    for (const { vente, indice } of ventesTrouvees) {
+      morceaux.push(ligneVente(communeOuverte, vente, indice, seuils, anneeOrigine));
+    }
+    morceaux.push("</ul>");
+  } else if (voiesTrouvees.length) {
+    compteur.textContent = `${nombre(voiesTrouvees.length)} voie`
+      + `${voiesTrouvees.length > 1 ? "s" : ""} trouvée${voiesTrouvees.length > 1 ? "s" : ""}`;
+    morceaux = ["<ul class=\"resultats\">"];
+    for (const { voie, commune } of voiesTrouvees) morceaux.push(ligneVoie(voie, commune, seuils));
+    morceaux.push("</ul>");
+  } else if (saisie && etat.annuaireEnCours && ressembleAUneAdresse(saisie)) {
+    compteur.textContent = "recherche d'adresse…";
+    morceaux = ["<p class=\"vide\">Recherche de l'adresse en cours…</p>"];
+  } else if (saisie && etat.erreurAnnuaire && ressembleAUneAdresse(saisie)) {
+    // Une panne ne doit jamais passer pour « cette adresse n'existe pas ».
+    compteur.textContent = "recherche d'adresse indisponible";
+    morceaux = [`<p class="vide">L'annuaire des adresses n'a pas pu être téléchargé.
+      Vérifiez votre connexion, puis retapez l'adresse.</p>`];
+  } else if (tous === null) {
     compteur.textContent = `${nombre(etat.communes.length)} communes`;
     morceaux = morceauxGroupes(etat, seuils);
   } else {

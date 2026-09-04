@@ -26,6 +26,7 @@ import json
 import math
 import os
 import random
+import re
 import shutil
 import statistics
 import sys
@@ -914,6 +915,41 @@ def calculer_bandes(ventes):
 # Ecriture des fichiers de sortie
 # --------------------------------------------------------------------------
 
+# Un numero de voirie en tete d'adresse : "12 RUE AMPERE", "3038 RTE DE ...",
+# parfois suivi d'un indice ("12 B RUE ..."). On le retire pour obtenir le
+# libelle de voie, qui est ce que l'annuaire recense.
+NUMERO_DE_VOIRIE = re.compile(r"^\d+\s*(?:[A-Z]\s+)?")
+# Quelques adresses DVF commencent par de la ponctuation isolee : "- AV
+# MARECHAL KOENIG", ". AV DE SAINT CASSIEN". Elle n'appartient pas au nom.
+BRUIT_DE_TETE = re.compile(r"^[^0-9A-Za-z\u00c0-\u017f]+")
+
+
+def libelle_de_voie(adresse):
+    """« 12 B RUE AMPERE » -> « RUE AMPERE »."""
+    texte = BRUIT_DE_TETE.sub("", adresse or "")
+    texte = NUMERO_DE_VOIRIE.sub("", texte)
+    return BRUIT_DE_TETE.sub("", texte).strip()
+
+
+def construire_index_voies(par_commune):
+    """Recense les libelles de voie et les communes ou ils apparaissent.
+
+    C'est un ANNUAIRE, pas un catalogue de ventes : il dit ou chercher, pas ce
+    qu'on y trouvera. Le site s'en sert pour retrouver une adresse tapee sans
+    avoir choisi de ville ; les prix, eux, viennent du fichier de la commune,
+    telecharge ensuite. Cette separation est ce qui garde l'annuaire a 0,8 Mo
+    compresse au lieu de 4,4 Mo si l'on y mettait les ventes elles-memes.
+    """
+    voies = defaultdict(set)
+    for code, liste in par_commune.items():
+        for vente in liste:
+            voie = libelle_de_voie(vente["adresse"])
+            if voie:
+                voies[voie].add(code)
+    return {"champs": ["voie", "communes"],
+            "valeurs": [[voie, sorted(codes)] for voie, codes in sorted(voies.items())]}
+
+
 CHAMPS_COMMUNE = ["code", "nom", "dep", "lat", "lon", "n", "m2_med", "m2_q1",
                   "m2_q3", "surf_med", "terr_med", "prix_med", "prix_terrain"]
 CHAMPS_VENTE = ["t", "prix", "sbati", "sterr", "pieces", "lat", "lon", "adresse"]
@@ -1020,6 +1056,8 @@ def construire_sorties(ventes, contours, adjacence, centroides, noms_communes,
                 {"champs": CHAMPS_COMMUNE, "valeurs": lignes_communes})
     ecrire_json(os.path.join(dossier, "communes-geo.json"), contours)
     ecrire_json(os.path.join(dossier, "adjacence.json"), adjacence)
+    # Annuaire des voies : telecharge seulement quand on cherche une adresse.
+    ecrire_json(os.path.join(dossier, "voies.json"), construire_index_voies(par_commune))
 
     for dep in DEPARTEMENTS:
         ecrire_json(os.path.join(dossier, "bandes-%s.json" % dep),
@@ -1279,6 +1317,49 @@ def controler(dossier, tolerant=False):
                         "couverture incomplete : %s en %d ne pese que %.1f %% de ses ventes, "
                         "contre %.1f %% ailleurs - millesime probablement manquant"
                         % (dep, annee, 100 * part, 100 * reference))
+
+    # --- K. annuaire des voies --------------------------------------------
+    # Ce fichier est telecharge par le site quand on cherche une adresse. S'il
+    # est absent ou incoherent, la recherche d'adresse echoue en silence.
+    chemin_voies = os.path.join(dossier, "voies.json")
+    if not os.path.exists(chemin_voies):
+        problemes.append("voies.json : fichier absent")
+    else:
+        with open(chemin_voies, encoding="utf-8") as flux:
+            voies = json.load(flux)
+        if voies.get("champs") != ["voie", "communes"]:
+            problemes.append("voies.json : champs inattendus %s" % (voies.get("champs"),))
+        else:
+            precedent = None
+            inconnues = set()
+            communes_citees = set()
+            for voie, codes in voies["valeurs"]:
+                if not voie or not voie.strip():
+                    problemes.append("voies.json : libelle de voie vide")
+                if precedent is not None and voie < precedent:
+                    problemes.append("voies.json : libelles mal tries (%s apres %s)"
+                                     % (voie, precedent))
+                    precedent = None
+                    break
+                precedent = voie
+                if not codes:
+                    problemes.append("voies.json : %s n'est rattachee a aucune commune" % voie)
+                for code in codes:
+                    communes_citees.add(code)
+                    if code not in par_code:
+                        inconnues.add(code)
+            if inconnues:
+                problemes.append("voies.json : %d code(s) de commune inconnu(s), dont %s"
+                                 % (len(inconnues), ", ".join(sorted(inconnues)[:5])))
+            # Toute commune qui a des ventes doit apparaitre dans l'annuaire :
+            # sinon son adresse serait introuvable alors que ses ventes existent.
+            avec_ventes = {code for code, ligne in par_code.items()
+                           if ligne[index["n"]] > 0}
+            manquantes = sorted(avec_ventes - communes_citees)
+            if manquantes:
+                problemes.append("voies.json : %d commune(s) a ventes absente(s) de "
+                                 "l'annuaire, dont %s"
+                                 % (len(manquantes), ", ".join(manquantes[:5])))
 
     # --- J. volumes et plausibilite (controles historiques) ---------------
     seuil_ventes = 10 if tolerant else 60_000
