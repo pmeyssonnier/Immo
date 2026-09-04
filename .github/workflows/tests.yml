@@ -29,8 +29,19 @@ jobs:
       - name: Nettoyage des données DVF (pièges du format, contours, chaîne complète)
         run: python3 -m unittest discover tests -v
 
-      - name: Modules JavaScript purs (estimation, mise en forme)
+      - name: Modules JavaScript purs (estimation, recherche, mise en forme)
         # Les fichiers sont listés un par un : « node --test tests/ » ramasserait
         # aussi verification_navigateur.mjs, qui exige un navigateur et
         # playwright-core, absents du serveur d'intégration.
-        run: node --test tests/test_estimation.mjs tests/test_format.mjs
+        #
+        # Cette liste explicite a un défaut : un fichier de tests ajouté au dépôt
+        # n'est jamais lancé tant que personne ne pense à l'inscrire ici. C'est
+        # ce qui est arrivé à test_demandes.mjs et test_donnees.mjs, écrits puis
+        # oubliés. Ils y sont maintenant.
+        run: >-
+          node --test
+          tests/test_estimation.mjs
+          tests/test_recherche.mjs
+          tests/test_format.mjs
+          tests/test_donnees.mjs
+          tests/test_demandes.mjs

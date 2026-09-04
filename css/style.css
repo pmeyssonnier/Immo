@@ -129,6 +129,14 @@ a { color: var(--accent); }
   border: 1px solid rgba(0, 0, 0, .18);
 }
 .liste-communes .nom { flex: 1; font-size: 13.5px; }
+/* En mode resultats, le departement suit immediatement le nom et prend la place
+   restante. Il n'est pas decoratif : 95 communes sont homonymes d'une autre,
+   « La Garde » existe dans le 04 comme dans le 83. */
+.liste-communes .resultats .nom { flex: none; }
+.liste-communes .dep-resultat {
+  flex: 1; min-width: 0; font-size: 11.5px; color: var(--encre-douce);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .liste-communes .stats {
   text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums;
 }

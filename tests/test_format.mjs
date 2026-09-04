@@ -3,7 +3,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { echapper, etoiles, eurosParM2, moisEnTexte, nombre, surface } from "../js/format.js";
+import { echapper, etoiles, eurosParM2, moisEnTexte, nombre, sansAccents, surface }
+  from "../js/format.js";
 
 // ---------------------------------------------------------------------------
 // echapper : la seule barrière entre une saisie et le HTML de la page.
@@ -68,4 +69,31 @@ test("les formateurs restent robustes aux valeurs manquantes", () => {
   assert.equal(nombre(null), "—");
   assert.equal(eurosParM2(undefined), "—");
   assert.equal(surface(null), "—");
+});
+
+
+// ---------------------------------------------------------------------------
+// sansAccents : la brique de toute la recherche, et elle n'etait pas testee.
+// ---------------------------------------------------------------------------
+
+test("sansAccents enleve les accents et la casse", () => {
+  for (const [avec, sans] of [["Nîmes", "nimes"], ["Alès", "ales"], ["Uzès", "uzes"],
+                              ["Ardèche", "ardeche"], ["Hérault", "herault"],
+                              ["Bouches-du-Rhône", "bouches-du-rhone"],
+                              ["Pyrénées-Orientales", "pyrenees-orientales"],
+                              ["Èze", "eze"], ["Oô", "oo"], ["Lançon", "lancon"]]) {
+    assert.equal(sansAccents(avec), sans, `« ${avec} »`);
+  }
+});
+
+test("sansAccents ne touche NI aux separateurs NI a la ponctuation", () => {
+  // C'est justement ce qu'elle ne fait pas qui a rendu js/recherche.js
+  // necessaire : « Pont Saint Esprit » ne trouvait pas « Pont-Saint-Esprit ».
+  assert.equal(sansAccents("Pont-Saint-Esprit"), "pont-saint-esprit");
+  assert.equal(sansAccents("L'Isle-sur-la-Sorgue"), "l'isle-sur-la-sorgue");
+  assert.notEqual(sansAccents("Pont Saint Esprit"), sansAccents("Pont-Saint-Esprit"));
+});
+
+test("sansAccents accepte l'absence de texte", () => {
+  for (const rien of [null, undefined, ""]) assert.equal(sansAccents(rien), "");
 });

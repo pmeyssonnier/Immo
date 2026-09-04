@@ -153,6 +153,41 @@ verifier(trouves.some((t) => t === "Nîmes"),
   `recherche « nimes » trouve « Nîmes » parmi ${depsDansLesDonnees} départements`
   + ` (${trouves.length} résultat(s))`);
 
+// --- 3 bis. les cas demandés, jusque dans le navigateur -------------------
+// Les mêmes que tests/test_recherche.mjs, mais joués pour de vrai : ce qui est
+// vérifié ici, c'est que le classement du module arrive intact jusqu'à l'écran.
+for (const [saisie, attendu] of [["Pont Saint Esprit", "Pont-Saint-Esprit"],
+                                 ["St Esprit", "Pont-Saint-Esprit"],
+                                 ["ale", "Alès"],
+                                 ["L'Isle sur la Sorgue", "L'Isle-sur-la-Sorgue"],
+                                 ["30", "Nîmes"]]) {
+  await page.fill("#champ-recherche", saisie);
+  await page.waitForTimeout(200);
+  const premier = await page.locator("#liste-communes li .nom").first().innerText()
+    .catch(() => "(aucun résultat)");
+  verifier(premier === attendu, `« ${saisie} » donne « ${premier} » en premier`
+    + (premier === attendu ? "" : ` — attendu « ${attendu} »`));
+}
+
+// Le département doit être lisible sur chaque ligne : « La Garde » existe dans
+// quatre départements, et rien d'autre ne permet de les distinguer.
+await page.fill("#champ-recherche", "la garde");
+await page.waitForTimeout(200);
+const departementsAffiches = await page.locator("#liste-communes li .dep-resultat").allInnerTexts();
+verifier(departementsAffiches.length > 0 && new Set(departementsAffiches).size > 1,
+  `département affiché sur chaque résultat (${new Set(departementsAffiches).size} distincts)`);
+
+// Le compteur ne doit pas annoncer un nombre qu'il n'affiche pas.
+await page.fill("#champ-recherche", "a");
+await page.waitForTimeout(300);
+const compteurLarge = await page.locator("#compteur-communes").innerText();
+const lignesAffichees = await page.locator("#liste-communes li").count();
+verifier(!/^\d+ communes? trouvée/.test(compteurLarge) || lignesAffichees >= 3000,
+  `compteur honnête sous le plafond : « ${compteurLarge} » pour ${lignesAffichees} lignes`);
+
+await page.fill("#champ-recherche", "nimes");
+await page.waitForTimeout(250);
+
 // --- 4. sélection d'une commune -----------------------------------------
 await page.click('#liste-communes li[data-code="30189"]');
 await page.waitForSelector("#panneau-droit:not([hidden])", { timeout: 10000 });
@@ -237,10 +272,22 @@ await page.fill("#surface-habitable", "135");
 // On vide d'abord la recherche (sinon le Gard ne contient qu'une ligne), puis
 // on déplie un département : sans cela la liste est trop courte pour défiler et
 // le test passerait sans rien prouver.
+//
+// Le dépliage est demandé EXPLICITEMENT, et non par un clic qui bascule. La
+// version précédente cliquait sur le titre en supposant qu'il était replié —
+// ce qui n'était vrai que par un défaut aujourd'hui corrigé : une recherche
+// marquait au passage tous les départements affichés comme « ouverts par
+// l'utilisateur », si bien qu'après l'avoir effacée on retrouvait les
+// quatorze groupes dépliés sans en avoir ouvert un seul.
 await page.fill("#champ-recherche", "");
 await page.waitForTimeout(250);
-await page.click('#liste-communes details[data-dep="30"] summary');
+const gardReplie = await page.evaluate(() =>
+  !document.querySelector('#liste-communes details[data-dep="30"]').open);
+if (gardReplie) await page.click('#liste-communes details[data-dep="30"] summary');
 await page.waitForTimeout(250);
+verifier(await page.evaluate(() =>
+  document.querySelector('#liste-communes details[data-dep="30"]').open),
+  "le Gard est déplié avant de mesurer le défilement");
 const defilementAvant = await page.evaluate(() => {
   const l = document.querySelector("#liste-communes"); l.scrollTop = 400; return l.scrollTop;
 });
