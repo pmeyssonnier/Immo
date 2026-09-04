@@ -1,5 +1,5 @@
 Recherche des millesimes DVF disponibles...
-Millesimes retenus : 2021, 2022, 2023, 2024, 2025
+Millesimes candidats : 2021, 2022, 2023, 2024, 2025
   telechargement 04 2021
   telechargement 05 2021
   telechargement 06 2021
@@ -70,6 +70,22 @@ Millesimes retenus : 2021, 2022, 2023, 2024, 2025
   telechargement 66 2025
   telechargement 83 2025
   telechargement 84 2025
+  couverture (X = obtenu)  2021  2022  2023  2024  2025
+  04 Alpes-de-Haute-Prove     X     X     X     X     X
+  05 Hautes-Alpes             X     X     X     X     X
+  06 Alpes-Maritimes          X     X     X     X     X
+  07 Ardèche                  X     X     X     X     X
+  09 Ariège                   X     X     X     X     X
+  11 Aude                     X     X     X     X     X
+  13 Bouches-du-Rhône         X     X     X     X     X
+  26 Drôme                    X     X     X     X     X
+  30 Gard                     X     X     X     X     X
+  31 Haute-Garonne            X     X     X     X     X
+  34 Hérault                  X     X     X     X     X
+  66 Pyrénées-Orientales      X     X     X     X     X
+  83 Var                      X     X     X     X     X
+  84 Vaucluse                 X     X     X     X     X
+Millesimes retenus : 2021, 2022, 2023, 2024, 2025
 Mutations contenant une maison : 413885
   rejet R1_pas_une_vente           2607
   rejet R2_vente_mixte            13017
