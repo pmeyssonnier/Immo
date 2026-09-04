@@ -23,6 +23,11 @@ let communesParCode = new Map();
 let seuilsCouleurs = [];
 let anneeOrigine = 2020;
 
+// Rayon d'un point de vente, et marge de clic autour de lui. Ensemble ils font
+// une cible de 2 x (6 + 15) = 42 px, contre 11 px auparavant.
+const RAYON_VENTE = 6;
+const MARGE_CLIC = 15;
+
 const STYLE_CHOROPLETHE = { weight: 0.5, color: "#ffffff", fillOpacity: 0.75 };
 const STYLE_CONTOUR_SEUL = { weight: 1, color: "#8a8a8a", fillOpacity: 0.05 };
 
@@ -106,11 +111,20 @@ export function initialiser(racine, actions) {
   avertissementFond = racine.querySelector("#avertissement-fond");
   avertissementDonnees = racine.querySelector("#avertissement-donnees");
 
-  // preferCanvas : indispensable pour afficher des milliers de points sans ramer
+  // preferCanvas : indispensable pour afficher des milliers de points sans ramer.
+  //
+  // tolerance : la marge, en pixels, autour d'un point pour qu'un clic compte.
+  // Elle n'est pas cosmetique. Contours de communes et points de vente sont
+  // peints sur le MEME canevas, et le contour selectionne la ville au clic : un
+  // point de 11 px de large avait donc, juste dessous, un capteur de clic grand
+  // comme toute la commune. Rater de 6 px suffisait a se faire recentrer sur le
+  // chef-lieu et a perdre l'estimation en cours. Avec cette marge et le rayon
+  // ci-dessous, la cible passe a 42 px : la taille recommandee pour un doigt.
   carte = L.map(racine.querySelector("#carte"), {
     center: CONFIG.CENTRE, zoom: CONFIG.ZOOM_INITIAL,
     minZoom: CONFIG.ZOOM_MIN, maxZoom: CONFIG.ZOOM_MAX,
     preferCanvas: true,
+    renderer: L.canvas({ tolerance: MARGE_CLIC }),
   });
 
   const fond = L.tileLayer(CONFIG.TUILES, {
@@ -248,7 +262,7 @@ export function rendre(etat, actions) {
     for (const vente of etat.ventesParCommune[code] || []) {
       if (vente.lat === null || vente.lon === null) continue;
       const marqueur = L.circleMarker([vente.lat, vente.lon], {
-        radius: 5, weight: 1, color: "#5a3a10", opacity: 0.9,
+        radius: RAYON_VENTE, weight: 1, color: "#5a3a10", opacity: 0.9,
         fillColor: couleurPrix(Math.round(vente.prix / vente.sbati), seuilsCouleurs),
         fillOpacity: 0.9,
       });

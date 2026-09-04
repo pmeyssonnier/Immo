@@ -43,6 +43,32 @@ await page.addInitScript(() => {
     window.__violationsCsp.push(`${e.violatedDirective} ← ${e.blockedURI}`);
   });
 });
+
+// On capte l'instance de carte Leaflet SANS toucher a l'application : on
+// intercepte l'affectation de window.L par la bibliotheque vendorisee, puis on
+// enveloppe L.map. C'est le seul moyen de viser un point de vente au pixel
+// pres, puisque les points sont peints sur un canvas et n'existent pas dans le
+// DOM -- aucun selecteur ne peut les designer.
+await page.addInitScript(() => {
+  let bibliotheque;
+  Object.defineProperty(window, "L", {
+    configurable: true,
+    get() { return bibliotheque; },
+    set(valeur) {
+      bibliotheque = valeur;
+      if (valeur && valeur.map && !valeur.__captee) {
+        const original = valeur.map;
+        valeur.map = function (...args) {
+          const instance = original.apply(this, args);
+          window.__carte = instance;
+          return instance;
+        };
+        Object.assign(valeur.map, original);
+        valeur.__captee = true;
+      }
+    },
+  });
+});
 await page.goto(`http://localhost:${PORT}${BASE}`, { waitUntil: "networkidle" });
 await page.waitForSelector("#application:not([hidden])", { timeout: 20000 });
 
@@ -207,6 +233,148 @@ verifier(bulles > 0, `ventes de Nîmes affichées sur la carte (${bulles} groupe
 await page.mouse.wheel(0, -600); await page.waitForTimeout(1500);
 const apresZoom = await page.locator("#carte .leaflet-marker-icon").count();
 verifier(apresZoom > 0, `après zoom : ${apresZoom} élément(s) de vente`);
+
+// --- 4 bis. viser un point de vente au doigt ------------------------------
+// Un point de vente ne faisait que 11 px de large, avec un capteur de clic
+// grand comme toute la commune juste dessous : rater de 6 px suffisait a
+// selectionner la ville, ce qui recentrait la carte ET effacait l'estimation
+// en cours. Mesure avant correctif : bulle de 0 a 5 px, commune au-dela.
+await page.evaluate(() => { window.__carte.setZoom(17); });
+await page.waitForTimeout(1800);
+
+// On repere une vente bien isolee, et on retient la vue pour pouvoir la
+// remettre a l'identique entre deux essais -- sans cela, un essai qui recentre
+// la carte fausse tous les suivants.
+const venteVisee = await page.evaluate(() => {
+  const boite = document.querySelector("#carte").getBoundingClientRect();
+  const candidats = [];
+  window.__carte.eachLayer((couche) => {
+    if (couche instanceof L.CircleMarker && couche.getLatLng) {
+      const p = window.__carte.latLngToContainerPoint(couche.getLatLng());
+      if (p.x > 70 && p.x < boite.width - 70 && p.y > 70 && p.y < boite.height - 70) {
+        candidats.push({ couche, p });
+      }
+    }
+  });
+  if (!candidats.length) return null;
+  let choix = null, ecartMax = -1;
+  for (const a of candidats) {
+    let plusProche = Infinity;
+    for (const b of candidats) {
+      if (b !== a) plusProche = Math.min(plusProche, Math.hypot(a.p.x - b.p.x, a.p.y - b.p.y));
+    }
+    if (plusProche > ecartMax) { ecartMax = plusProche; choix = a; }
+  }
+  const position = choix.couche.getLatLng();
+  const vue = window.__carte.getCenter();
+  window.__vente = { lat: position.lat, lng: position.lng };
+  window.__vue = { lat: vue.lat, lng: vue.lng, zoom: window.__carte.getZoom() };
+  return { voisin: Math.round(ecartMax), candidats: candidats.length };
+});
+
+if (!venteVisee) {
+  verifier(false, "aucun point de vente isolé à viser (le test ne prouve rien)");
+} else {
+  // Remet la vue, vide les compteurs, puis clique a "ecart" pixels du centre
+  // du point. Les compteurs sont poses SUR les couches Leaflet : ils disent qui
+  // recoit vraiment le clic, sans dependre d'un effet visible.
+  const cliquerA = async (ecart) => {
+    await page.evaluate(() => {
+      window.__carte.closePopup();
+      window.__carte.setView([window.__vue.lat, window.__vue.lng], window.__vue.zoom,
+        { animate: false });
+      window.__recu = { vente: 0, commune: 0 };
+      if (!window.__compteursPoses) {
+        window.__compteursPoses = true;
+        window.__carte.eachLayer((couche) => {
+          if (couche instanceof L.CircleMarker) couche.on("click", () => { window.__recu.vente += 1; });
+          else if (couche instanceof L.Polygon) couche.on("click", () => { window.__recu.commune += 1; });
+        });
+      }
+    });
+    await page.waitForTimeout(400);
+    const point = await page.evaluate(() => {
+      const p = window.__carte.latLngToContainerPoint(
+        L.latLng(window.__vente.lat, window.__vente.lng));
+      const boite = document.querySelector("#carte").getBoundingClientRect();
+      return { x: Math.round(p.x + boite.left), y: Math.round(p.y + boite.top) };
+    });
+    await page.mouse.click(point.x + ecart, point.y);
+    await page.waitForTimeout(600);
+    return page.evaluate(() => window.__recu);
+  };
+
+  verifier((await cliquerA(0)).vente > 0,
+    "un clic sur un point de vente ouvre bien sa bulle");
+  verifier((await cliquerA(15)).vente > 0,
+    "un clic à 15 px du point ouvre encore sa bulle (cible tactile)");
+
+  // Un clic franchement à côté, dans la commune déjà ouverte, ne doit RIEN
+  // coûter : ni la position de la carte, ni l'estimation affichée.
+  //
+  // On produit donc une VRAIE estimation d'abord. Sans elle, ce contrôle
+  // comparait « 0 caractère » à « 0 caractère » et passait sans rien prouver --
+  // il l'a fait, et c'est ce qui a conduit à ajouter ces trois lignes.
+  await page.fill("#surface-habitable", "135");
+  await page.click("#formulaire-estimation button[type=\"submit\"]");
+  await page.waitForTimeout(2000);
+  const estimationPosee = await page.evaluate(() => {
+    const zone = document.querySelector("#resultat-estimation");
+    return zone ? zone.innerText.trim().length : 0;
+  });
+  verifier(estimationPosee > 20,
+    `une estimation est bien affichée avant le clic manqué (${estimationPosee} caractères)`);
+
+  await page.evaluate(() => {
+    window.__carte.closePopup();
+    window.__carte.setView([window.__vue.lat, window.__vue.lng], window.__vue.zoom,
+      { animate: false });
+    // on se décale, pour qu'un recentrage sur la commune se voie
+    const p = window.__carte.latLngToContainerPoint(window.__carte.getCenter());
+    window.__carte.setView(
+      window.__carte.containerPointToLatLng(L.point(p.x + 120, p.y + 80)),
+      window.__vue.zoom, { animate: false });
+  });
+  await page.waitForTimeout(500);
+  const avantClicPerdu = await page.evaluate(() => {
+    const c = window.__carte.getCenter();
+    const zone = document.querySelector("#resultat-estimation");
+    return { vue: c.lat.toFixed(6) + "," + c.lng.toFixed(6),
+             estimation: zone ? zone.innerText.trim().length : 0 };
+  });
+  const loin = await page.evaluate(() => {
+    const p = window.__carte.latLngToContainerPoint(
+      L.latLng(window.__vente.lat, window.__vente.lng));
+    const boite = document.querySelector("#carte").getBoundingClientRect();
+    return { x: Math.round(p.x + boite.left) + 70, y: Math.round(p.y + boite.top) + 50 };
+  });
+  await page.mouse.click(loin.x, loin.y);
+  await page.waitForTimeout(1200);
+  const apresClicPerdu = await page.evaluate(() => {
+    const c = window.__carte.getCenter();
+    const zone = document.querySelector("#resultat-estimation");
+    return { vue: c.lat.toFixed(6) + "," + c.lng.toFixed(6),
+             estimation: zone ? zone.innerText.trim().length : 0 };
+  });
+  verifier(avantClicPerdu.vue === apresClicPerdu.vue,
+    `un clic manqué ne déplace pas la carte (${avantClicPerdu.vue} → ${apresClicPerdu.vue})`);
+  verifier(avantClicPerdu.estimation === apresClicPerdu.estimation,
+    `un clic manqué n'efface pas l'estimation affichée`
+    + ` (${avantClicPerdu.estimation} → ${apresClicPerdu.estimation} caractères)`);
+
+  // Non-régression indispensable : changer de commune doit toujours marcher.
+  await page.fill("#champ-recherche", "uzes");
+  await page.waitForTimeout(300);
+  await page.click("#liste-communes li[data-code=\"30334\"]");
+  await page.waitForTimeout(1500);
+  const titreApres = await page.locator("#panneau-droit h2").innerText();
+  verifier(titreApres === "Uzès",
+    `choisir une AUTRE commune fonctionne toujours (« ${titreApres} »)`);
+  await page.fill("#champ-recherche", "nimes");
+  await page.waitForTimeout(300);
+  await page.click("#liste-communes li[data-code=\"30189\"]");
+  await page.waitForTimeout(1500);
+}
 
 verifier(await page.locator("#avertissement-fond").isVisible(),
   "avertissement « fond de carte indisponible » affiché ET conservé");

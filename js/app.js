@@ -175,6 +175,13 @@ const actions = {
   },
 
   async selectionnerCommune(code) {
+    // Recliquer la commune DEJA ouverte ne doit rien faire. Sans ce garde-fou,
+    // un clic manque a cote d'un point de vente -- le geste le plus courant au
+    // doigt -- remettait estimation a null et recentrait la carte sur le
+    // chef-lieu : on perdait a la fois le quartier qu'on regardait et le
+    // chiffre qu'on venait de calculer. Le panneau montre deja cette commune,
+    // il n'y a rien a refaire.
+    if (code === etat.communeSelectionnee) return;
     const commune = etat.communes.find((c) => c.code === code);
     const jeton = demandes.nouvelle();
     majEtat({
