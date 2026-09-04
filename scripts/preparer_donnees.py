@@ -895,8 +895,31 @@ def construire_sorties(ventes, contours, adjacence, centroides, noms_communes,
 # Controles de coherence : mieux vaut echouer que publier des chiffres faux
 # --------------------------------------------------------------------------
 
-def verifier(dossier, tolerant=False):
-    """Relit les fichiers produits et refuse de valider s'ils sont absurdes."""
+# Bornes de la France metropolitaine, pour reperer une coordonnee absurde.
+LAT_MIN, LAT_MAX = 41.0, 51.5
+LON_MIN, LON_MAX = -5.5, 9.8
+# Part maximale de communes sans contour. Ce ne sont pas des erreurs : ce sont
+# des communes fusionnees, presentes dans DVF sans contour propre. Mesure
+# actuelle : 0,4 %. Le seuil sert a reperer une degradation, pas a exiger zero.
+PART_MAX_SANS_CONTOUR = 0.01
+# Une annee doit peser dans un departement au moins 40 % de ce qu'elle pese
+# ailleurs. Forme RELATIVE, donc insensible a un dernier millesime partiel.
+# Mesure actuelle : le rapport le plus faible vaut 0,93.
+RAPPORT_MIN_COUVERTURE = 0.40
+# En dessous de ce volume, un departement peut n'avoir aucune tranche de surface
+# remplie (il en faut 5 ventes par tranche) : ce n'est pas une anomalie.
+MIN_VENTES_POUR_BANDES = 50
+
+
+def controler(dossier, tolerant=False):
+    """Relit TOUS les fichiers produits et renvoie la liste des problemes.
+
+    Separee de verifier() pour servir a deux moments : le robot l'appelle sur
+    les donnees fraiches AVANT de les commiter, et l'integration continue
+    l'appelle sur les donnees DEJA commitees. Une seule implementation, donc
+    aucune divergence possible entre ce qui bloque la publication et ce qui
+    bloque une modification du code.
+    """
     problemes = []
 
     def charger(nom):
@@ -904,18 +927,201 @@ def verifier(dossier, tolerant=False):
         if not os.path.exists(chemin):
             problemes.append("fichier manquant : %s" % nom)
             return None
-        with open(chemin, encoding="utf-8") as flux:
-            return json.load(flux)
+        try:
+            with open(chemin, encoding="utf-8") as flux:
+                return json.load(flux)
+        except ValueError:
+            problemes.append("fichier illisible : %s" % nom)
+            return None
 
     meta = charger("meta.json")
     communes = charger("communes.json")
-    for nom in ("communes-geo.json", "adjacence.json", "bandes-30.json", "bandes-07.json"):
-        charger(nom)
+    contours = charger("communes-geo.json")
+    adjacence = charger("adjacence.json")
     if meta is None or communes is None:
-        for probleme in problemes:
-            print("ECHEC : " + probleme)
-        return False
+        return problemes
 
+    # --- A. meta.json -----------------------------------------------------
+    for cle in ("millesimes", "mois_reference", "nb_ventes", "annee_origine",
+                "seuils_couleurs", "indice_prix", "prix_terrain_defaut", "departements"):
+        if cle not in meta:
+            problemes.append("meta.json : champ '%s' manquant" % cle)
+    if problemes:
+        return problemes
+
+    seuils = meta["seuils_couleurs"]
+    if seuils and any(a >= b for a, b in zip(seuils, seuils[1:])):
+        problemes.append("meta.json : seuils_couleurs pas strictement croissants : %s" % seuils)
+    for dep in meta["departements"]:
+        if dep not in meta["prix_terrain_defaut"]:
+            problemes.append("meta.json : prix_terrain_defaut absent pour %s" % dep)
+        # L'indice de prix annuel demande au moins 20 ventes par annee : un jeu
+        # de test minuscule n'en produit aucun, et c'est legitime. En production
+        # il doit exister pour chaque departement.
+        if not tolerant and dep not in meta["indice_prix"]:
+            problemes.append("meta.json : indice_prix absent pour le departement %s" % dep)
+
+    # --- B. communes.json -------------------------------------------------
+    if communes.get("champs") != CHAMPS_COMMUNE:
+        problemes.append("communes.json : liste de champs inattendue")
+        return problemes
+    index = {nom: i for i, nom in enumerate(CHAMPS_COMMUNE)}
+    par_code = {}
+    for ligne in communes["valeurs"]:
+        code = ligne[index["code"]]
+        if code in par_code:
+            problemes.append("communes.json : code en double : %s" % code)
+        par_code[code] = ligne
+        if ligne[index["dep"]] not in DEPARTEMENTS:
+            problemes.append("commune %s : departement inconnu %s" % (code, ligne[index["dep"]]))
+        q1, med, q3 = (ligne[index[c]] for c in ("m2_q1", "m2_med", "m2_q3"))
+        if med is not None and not (q1 <= med <= q3):
+            problemes.append("commune %s : quartiles incoherents (%s / %s / %s)"
+                             % (code, q1, med, q3))
+        assez = ligne[index["n"]] >= MIN_VENTES_AFFICHAGE
+        if assez != (med is not None):
+            problemes.append("commune %s : %d vente(s) mais mediane %s"
+                             % (code, ligne[index["n"]], "presente" if med is not None else "absente"))
+
+    # --- C. totaux --------------------------------------------------------
+    somme = sum(l[index["n"]] for l in communes["valeurs"])
+    if somme != meta["nb_ventes"]:
+        problemes.append("total incoherent : somme des communes = %d, meta.nb_ventes = %d"
+                         % (somme, meta["nb_ventes"]))
+    somme_dep = sum(d["nb_ventes"] for d in meta["departements"].values())
+    if somme_dep != meta["nb_ventes"]:
+        problemes.append("total par departement = %d, meta.nb_ventes = %d"
+                         % (somme_dep, meta["nb_ventes"]))
+
+    # --- D + E. fichiers de ventes ---------------------------------------
+    # Un seul parcours : on lit chaque fichier une fois et on verifie tout.
+    attendus = {l[index["code"]] for l in communes["valeurs"] if l[index["n"]] > 0}
+    dossier_ventes = os.path.join(dossier, "ventes")
+    presents, ventes_par_dep_annee = set(), defaultdict(lambda: defaultdict(int))
+    if os.path.isdir(dossier_ventes):
+        for sous in sorted(os.listdir(dossier_ventes)):
+            for fichier in sorted(os.listdir(os.path.join(dossier_ventes, sous))):
+                if not fichier.endswith(".json"):
+                    continue
+                code = fichier[:-5]
+                presents.add(code)
+                with open(os.path.join(dossier_ventes, sous, fichier), encoding="utf-8") as flux:
+                    table = json.load(flux)
+                if code not in par_code:
+                    continue          # signale plus bas comme orphelin
+                if table.get("champs") != CHAMPS_VENTE or table.get("code") != code:
+                    problemes.append("ventes/%s/%s : en-tete incoherent" % (sous, fichier))
+                    continue
+                attendu = par_code[code][index["n"]]
+                if len(table["ventes"]) != attendu:
+                    problemes.append("commune %s : %d ventes dans le fichier, %d annoncees"
+                                     % (code, len(table["ventes"]), attendu))
+                position = {nom: i for i, nom in enumerate(CHAMPS_VENTE)}
+                precedent = None
+                for vente in table["ventes"]:
+                    t = vente[position["t"]]
+                    ventes_par_dep_annee[code[:2]][annee_depuis_mois(t)] += 1
+                    if precedent is not None and t > precedent:
+                        # Un seul signalement par fichier : l'information est
+                        # « ce fichier est mal trie », pas « voici 400 paires ».
+                        problemes.append("commune %s : ventes non triees de la plus recente "
+                                         "a la plus ancienne" % code)
+                        break
+                    precedent = t
+                    if vente[position["prix"]] <= 0 or vente[position["sbati"]] <= 0:
+                        problemes.append("commune %s : vente a prix ou surface nulle" % code)
+                        break
+                    if not (0 <= t <= meta["mois_reference"]):
+                        problemes.append("commune %s : date hors periode (t=%s)" % (code, t))
+                        break
+                    lat, lon = vente[position["lat"]], vente[position["lon"]]
+                    if lat is None or lon is None or not (
+                            LAT_MIN < lat < LAT_MAX and LON_MIN < lon < LON_MAX):
+                        problemes.append("commune %s : vente hors de France (%s, %s)"
+                                         % (code, lat, lon))
+                        break
+
+    for code in sorted(attendus - presents):
+        problemes.append("commune %s : %d ventes annoncees mais aucun fichier"
+                         % (code, par_code[code][index["n"]]))
+    for code in sorted(presents - attendus):
+        problemes.append("fichier de ventes orphelin : %s (aucune vente annoncee)" % code)
+
+    # --- F. contours ------------------------------------------------------
+    if contours is not None:
+        codes_geo = {e["properties"]["code"] for e in contours.get("features", [])}
+        for code in sorted(codes_geo - set(par_code)):
+            problemes.append("contour d'une commune inconnue : %s" % code)
+        sans_contour = len(set(par_code) - codes_geo)
+        part = sans_contour / max(len(par_code), 1)
+        if part > PART_MAX_SANS_CONTOUR:
+            problemes.append("%d communes sans contour (%.1f %%), au-dela de %.0f %%"
+                             % (sans_contour, 100 * part, 100 * PART_MAX_SANS_CONTOUR))
+
+    # --- G. adjacence -----------------------------------------------------
+    if adjacence is not None:
+        for code, voisins in adjacence.items():
+            if code not in par_code:
+                problemes.append("adjacence : commune inconnue %s" % code)
+                continue
+            if code in voisins:
+                problemes.append("adjacence : %s se declare sa propre voisine" % code)
+            if len(set(voisins)) != len(voisins):
+                problemes.append("adjacence : doublons chez %s" % code)
+            for voisin in voisins:
+                if voisin not in par_code:
+                    problemes.append("adjacence : %s voisine d'une commune inconnue %s"
+                                     % (code, voisin))
+                elif code not in adjacence.get(voisin, []):
+                    problemes.append("adjacence non symetrique : %s -> %s mais pas l'inverse"
+                                     % (code, voisin))
+
+    # --- H. les fichiers de bandes, TOUS les departements -----------------
+    for dep in DEPARTEMENTS:
+        bandes = charger("bandes-%s.json" % dep)
+        if bandes is None:
+            continue
+        # Une tranche demande au moins 5 ventes : un departement peu fourni a
+        # donc legitimement des bandes vides. On n'exige des tranches qu'au-dela
+        # d'un volume ou leur absence signalerait vraiment un probleme.
+        if not bandes.get("valeurs"):
+            ventes_dep = meta["departements"].get(dep, {}).get("nb_ventes", 0)
+            if ventes_dep >= MIN_VENTES_POUR_BANDES:
+                problemes.append("bandes-%s.json : aucune tranche de surface alors que le "
+                                 "departement compte %d ventes" % (dep, ventes_dep))
+            continue
+        for borne_inf, borne_sup, _n, q1, med, q3 in bandes["valeurs"]:
+            if (borne_inf, borne_sup) not in BANDES_SURFACE:
+                problemes.append("bandes-%s.json : tranche inattendue %s-%s"
+                                 % (dep, borne_inf, borne_sup))
+            if not (q1 <= med <= q3):
+                problemes.append("bandes-%s.json : quartiles incoherents sur %s-%s"
+                                 % (dep, borne_inf, borne_sup))
+
+    # --- I. couverture (departement x annee) ------------------------------
+    # Le vrai filet contre un telechargement partiel : on ne fait pas confiance
+    # a ce que meta.json declare, on recalcule depuis les ventes elles-memes.
+    millesimes = [a for a in meta["millesimes"] if isinstance(a, int)]
+    if not tolerant and millesimes and ventes_par_dep_annee:
+        for annee in millesimes:
+            parts = {}
+            for dep, par_annee in ventes_par_dep_annee.items():
+                total = sum(par_annee.values())
+                if total:
+                    parts[dep] = par_annee.get(annee, 0) / total
+            if len(parts) < 2:
+                continue
+            reference = mediane(list(parts.values()))
+            if not reference:
+                continue
+            for dep, part in sorted(parts.items()):
+                if part / reference < RAPPORT_MIN_COUVERTURE:
+                    problemes.append(
+                        "couverture incomplete : %s en %d ne pese que %.1f %% de ses ventes, "
+                        "contre %.1f %% ailleurs - millesime probablement manquant"
+                        % (dep, annee, 100 * part, 100 * reference))
+
+    # --- J. volumes et plausibilite (controles historiques) ---------------
     seuil_ventes = 10 if tolerant else 60_000
     seuil_communes = 1 if tolerant else 1_200
     seuil_par_departement = 0 if tolerant else 2_000
@@ -923,21 +1129,16 @@ def verifier(dossier, tolerant=False):
     if meta["nb_ventes"] < seuil_ventes:
         problemes.append("seulement %d ventes retenues (attendu >= %d)"
                          % (meta["nb_ventes"], seuil_ventes))
-
-    coloriables = sum(1 for l in communes["valeurs"] if l[6] is not None)
+    coloriables = sum(1 for l in communes["valeurs"] if l[index["m2_med"]] is not None)
     if coloriables < seuil_communes:
         problemes.append("seulement %d communes exploitables (attendu >= %d)"
                          % (coloriables, seuil_communes))
-
-    # Controle par departement, et non seulement sur le total : c'est le seul
-    # moyen de reperer qu'UN departement n'a pas ete telecharge. Un seuil global
-    # resterait vert alors qu'il manquerait un huitieme de la France du sud.
     if not tolerant:
         manquants = [d for d in DEPARTEMENTS if d not in meta["departements"]]
         if manquants:
             problemes.append("departements absents du resultat : " + ", ".join(manquants))
 
-    for dep, infos in meta["departements"].items():
+    for dep, infos in sorted(meta["departements"].items()):
         if infos["nb_ventes"] < seuil_par_departement:
             problemes.append("departement %s : seulement %d ventes (attendu >= %d) "
                              "- telechargement probablement incomplet"
@@ -951,13 +1152,19 @@ def verifier(dossier, tolerant=False):
             problemes.append("mediane %s = %d EUR/m2, hors de l'intervalle plausible "
                              "700-12000" % (dep, prix))
 
+    return problemes
+
+
+def verifier(dossier, tolerant=False):
+    """Imprime les problemes trouves et renvoie True si tout est conforme."""
+    problemes = controler(dossier, tolerant)
     for probleme in problemes:
         print("ECHEC : " + probleme)
     if not problemes:
-        print("Controles de coherence : tout est conforme (%d ventes, %d communes)."
-              % (meta["nb_ventes"], coloriables))
+        with open(os.path.join(dossier, "meta.json"), encoding="utf-8") as flux:
+            meta = json.load(flux)
+        print("Controles de coherence : tout est conforme (%d ventes)." % meta["nb_ventes"])
     return not problemes
-
 
 # --------------------------------------------------------------------------
 # Programme principal

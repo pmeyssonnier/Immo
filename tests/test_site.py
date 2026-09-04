@@ -16,6 +16,7 @@ import struct
 import sys
 import threading
 import unittest
+import urllib.error
 import urllib.request
 import zlib
 from functools import partial
@@ -255,6 +256,57 @@ class TestSite(unittest.TestCase):
             noms_site,
             [preparer_donnees.DEPARTEMENTS[c]["nom"] for c in cote_script],
             "les noms de departements different entre le site et le script")
+
+    def test_donnees_publiees_integralement_coherentes(self):
+        """Les memes controles que ceux qui gardent la publication, mais sur les
+        donnees DEJA commitees.
+
+        Une seule implementation (preparer_donnees.controler), deux moments : le
+        robot l'appelle avant de commiter, l'integration continue apres. Ce qui
+        bloque une publication bloque donc aussi une modification du code.
+        """
+        import preparer_donnees
+
+        problemes = preparer_donnees.controler(os.path.join(RACINE, "data"))
+        self.assertEqual(problemes, [], "donnees publiees incoherentes :\n  - "
+                         + "\n  - ".join(problemes))
+
+    def test_un_fichier_de_ventes_par_departement(self):
+        """Le controle precedent lit les fichiers sur le disque ; celui-ci
+        verifie qu'ils sont bien SERVIS, dans chaque departement."""
+        communes = self.json("data/communes.json")
+        i_dep, i_n, i_code = (communes["champs"].index(c) for c in ("dep", "n", "code"))
+        meilleures = {}
+        for ligne in communes["valeurs"]:
+            dep = ligne[i_dep]
+            if ligne[i_n] > meilleures.get(dep, [None, 0])[1]:
+                meilleures[dep] = [ligne[i_code], ligne[i_n]]
+        self.assertGreaterEqual(len(meilleures), 14)
+        for dep, (code, n) in sorted(meilleures.items()):
+            ventes = self.json("data/ventes/%s/%s.json" % (dep, code))
+            self.assertEqual(len(ventes["ventes"]), n,
+                             "departement %s, commune %s" % (dep, code))
+
+    def test_une_commune_sans_vente_repond_404(self):
+        """Verrouille le contrat cote application : absent signifie 404, et 404
+        signifie absent.
+
+        C'est ce contrat qui autorise js/donnees.js a traduire un 404 -- et
+        seulement un 404 -- par « cette commune n'a aucune vente ». Si le
+        serveur repondait autre chose, une commune vide passerait pour une
+        panne, ou pire une panne passerait pour une commune vide.
+        """
+        communes = self.json("data/communes.json")
+        i_dep, i_n, i_code = (communes["champs"].index(c) for c in ("dep", "n", "code"))
+        vide = next((l for l in communes["valeurs"] if l[i_n] == 0), None)
+        if vide is None:
+            self.skipTest("aucune commune sans vente dans ce jeu de donnees")
+        chemin = self.base + "data/ventes/%s/%s.json" % (vide[i_dep], vide[i_code])
+        with self.assertRaises(urllib.error.HTTPError) as leve:
+            urllib.request.urlopen(chemin, timeout=30)
+        self.assertEqual(leve.exception.code, 404,
+                         "une commune sans vente doit repondre 404, pas %s"
+                         % leve.exception.code)
 
     def test_politique_de_securite_du_contenu(self):
         """La CSP est la deuxieme barriere contre l'injection de code.

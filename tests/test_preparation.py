@@ -9,6 +9,7 @@ import csv
 import json
 import os
 import random
+import shutil
 import sys
 import tempfile
 import unittest
@@ -343,6 +344,130 @@ class TestChaineComplete(unittest.TestCase):
         self.assertEqual(dates, sorted(dates, reverse=True), "ventes non triees du recent au vieux")
 
         self.assertTrue(prep.verifier(sortie, tolerant=True))
+
+
+class TestControlesExhaustifs(unittest.TestCase):
+    """Une corruption par regle, et le message doit nommer le coupable.
+
+    Ces sept corruptions passaient TOUTES l'ancien verifier() sans un mot :
+    il ne regardait ni les fichiers de ventes, ni l'adjacence, ni les
+    coordonnees, et seulement deux des quatorze fichiers de bandes.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        import io
+        import contextlib
+        cls.reference = tempfile.mkdtemp(prefix="controle-reference-")
+        argv = sys.argv
+        sys.argv = ["preparer_donnees.py", "--source-locale", FIXTURES,
+                    "--sortie", cls.reference]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                prep.RAPPORT.clear()
+                prep.main()
+        finally:
+            sys.argv = argv
+
+    def controler_apres(self, abimer):
+        """Copie les donnees de reference, les abime, et renvoie les problemes."""
+        dossier = tempfile.mkdtemp(prefix="controle-")
+        shutil.rmtree(dossier)
+        shutil.copytree(self.reference, dossier)
+        abimer(dossier)
+        return prep.controler(dossier, tolerant=True)
+
+    @staticmethod
+    def _charger(dossier, *chemin):
+        with open(os.path.join(dossier, *chemin), encoding="utf-8") as flux:
+            return json.load(flux)
+
+    @staticmethod
+    def _ecrire(donnees, dossier, *chemin):
+        with open(os.path.join(dossier, *chemin), "w", encoding="utf-8") as flux:
+            json.dump(donnees, flux)
+
+    def test_donnees_intactes_ne_signalent_rien(self):
+        """Sans ce test, tous les autres pourraient passer pour de mauvaises raisons."""
+        self.assertEqual(prep.controler(self.reference, tolerant=True), [])
+
+    def test_fichier_de_ventes_manquant(self):
+        def abimer(d):
+            os.remove(os.path.join(d, "ventes", "30", "30189.json"))
+        problemes = self.controler_apres(abimer)
+        self.assertEqual(len(problemes), 1)
+        self.assertIn("30189", problemes[0])
+        self.assertIn("aucun fichier", problemes[0])
+
+    def test_nombre_de_ventes_annonce_faux(self):
+        def abimer(d):
+            table = self._charger(d, "communes.json")
+            i = table["champs"].index("n")
+            for ligne in table["valeurs"]:
+                if ligne[0] == "30189":
+                    ligne[i] = 9999
+            self._ecrire(table, d, "communes.json")
+        problemes = self.controler_apres(abimer)
+        self.assertTrue(any("30189" in p and "annoncees" in p for p in problemes),
+                        "le fichier de ventes ne correspond plus au nombre annonce : %s" % problemes)
+
+    def test_adjacence_non_symetrique(self):
+        def abimer(d):
+            voisins = self._charger(d, "adjacence.json")
+            for code in list(voisins):
+                if voisins[code]:
+                    voisins[code] = voisins[code][1:]
+                    break
+            self._ecrire(voisins, d, "adjacence.json")
+        problemes = self.controler_apres(abimer)
+        self.assertEqual(len(problemes), 1)
+        self.assertIn("symetrique", problemes[0])
+
+    def test_fichier_de_ventes_orphelin(self):
+        def abimer(d):
+            self._ecrire({"code": "30999", "champs": prep.CHAMPS_VENTE, "ventes": []},
+                         d, "ventes", "30", "30999.json")
+        problemes = self.controler_apres(abimer)
+        self.assertEqual(len(problemes), 1)
+        self.assertIn("orphelin", problemes[0])
+
+    def test_coordonnee_hors_de_France(self):
+        def abimer(d):
+            table = self._charger(d, "ventes", "30", "30189.json")
+            table["ventes"][0][table["champs"].index("lat")] = 64.9   # Islande
+            self._ecrire(table, d, "ventes", "30", "30189.json")
+        problemes = self.controler_apres(abimer)
+        self.assertEqual(len(problemes), 1)
+        self.assertIn("hors de France", problemes[0])
+
+    def test_total_annonce_faux(self):
+        def abimer(d):
+            meta = self._charger(d, "meta.json")
+            meta["nb_ventes"] = 999
+            self._ecrire(meta, d, "meta.json")
+        problemes = self.controler_apres(abimer)
+        self.assertTrue(any("total incoherent" in p for p in problemes), problemes)
+
+    def test_ventes_mal_triees(self):
+        """L'application affiche les ventes de la plus recente a la plus ancienne."""
+        def abimer(d):
+            table = self._charger(d, "ventes", "30", "30189.json")
+            table["ventes"].reverse()
+            self._ecrire(table, d, "ventes", "30", "30189.json")
+        problemes = self.controler_apres(abimer)
+        self.assertEqual(len(problemes), 1, "un seul signalement par fichier, pas un par paire")
+        self.assertIn("non triees", problemes[0])
+
+    def test_quartiles_incoherents(self):
+        def abimer(d):
+            table = self._charger(d, "communes.json")
+            i = table["champs"].index("m2_q1")
+            for ligne in table["valeurs"]:
+                if ligne[0] == "30189":
+                    ligne[i] = 99999
+            self._ecrire(table, d, "communes.json")
+        problemes = self.controler_apres(abimer)
+        self.assertTrue(any("quartiles" in p for p in problemes), problemes)
 
 
 if __name__ == "__main__":
