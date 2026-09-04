@@ -43,10 +43,19 @@ jobs:
   construire:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # La branche de publication est ecrite noir sur blanc, et non deduite du
+      # declencheur. Le robot utilisait $GITHUB_REF_NAME pour le clone comme
+      # pour le push : sur un lancement manuel ou planifie, cette variable vaut
+      # la reference choisie au moment du declenchement, donc les donnees
+      # pouvaient atterrir sur une branche de travail. Le site n'en a qu'une.
+      # Consequence assumee : lancer le robot a la main depuis une autre branche
+      # construit et publie quand meme les donnees de main.
+      BRANCHE: main
     steps:
       - name: Récupérer le code
         run: |
-          git clone --branch "$GITHUB_REF_NAME" \
+          git clone --branch "$BRANCHE" \
             "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" .
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -76,5 +85,5 @@ jobs:
             echo "Aucun changement : les données étaient déjà à jour."
           else
             git commit -m "Données DVF mises à jour ($(date +%F))"
-            git push origin "HEAD:$GITHUB_REF_NAME"
+            git push origin "HEAD:$BRANCHE"
           fi

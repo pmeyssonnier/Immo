@@ -334,6 +334,28 @@ class TestSite(unittest.TestCase):
             self.assertEqual(origine, "https://tile.openstreetmap.org",
                              "origine exterieure inattendue dans la CSP : " + origine)
 
+    def test_le_robot_publie_sur_une_branche_explicite(self):
+        """Le robot ne doit jamais decider tout seul ou il ecrit les donnees.
+
+        Il utilisait $GITHUB_REF_NAME pour le clone ET pour le push. Sur un
+        lancement manuel ou planifie, cette variable vaut la reference choisie
+        au moment du declenchement : le robot pouvait donc ecrire les donnees
+        sur n'importe quelle branche, y compris une branche de travail. Le site
+        n'en a qu'une, et c'est main.
+        """
+        chemin = os.path.join(RACINE, ".github", "workflows", "donnees.yml")
+        lignes = open(chemin, encoding="utf-8").read().splitlines()
+        # Seul ce qui s'execute compte : le commentaire du workflow raconte
+        # justement l'histoire de $GITHUB_REF_NAME, et il a le droit de la citer.
+        actif = "\n".join(l for l in lignes if not l.lstrip().startswith("#"))
+
+        self.assertNotIn("GITHUB_REF_NAME", actif,
+                         "la branche du robot ne doit pas dependre du declencheur")
+        self.assertIn("BRANCHE: main", actif,
+                      "la branche de publication doit etre ecrite noir sur blanc")
+        self.assertEqual(actif.count("$BRANCHE"), 2,
+                         "les deux usages -- le clone et le push -- doivent la lire")
+
     def test_nombre_de_departements_annonce(self):
         """Le nombre de departements annonce au public doit etre le vrai.
 
