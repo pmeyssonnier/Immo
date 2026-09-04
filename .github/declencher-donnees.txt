@@ -1,3 +1,4 @@
 Écrire la date du jour dans ce fichier relance le robot de mise à jour des données.
 
 Dernier déclenchement : 2026-09-03 20:40 UTC
+2026-09-04 10:02 UTC — vérification de bout en bout après D3, D2 et le rejeu du push
