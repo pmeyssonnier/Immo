@@ -344,17 +344,20 @@ class TestSite(unittest.TestCase):
         n'en a qu'une, et c'est main.
         """
         chemin = os.path.join(RACINE, ".github", "workflows", "donnees.yml")
-        lignes = open(chemin, encoding="utf-8").read().splitlines()
+        with open(chemin, encoding="utf-8") as flux:
+            lignes = flux.read().splitlines()
         # Seul ce qui s'execute compte : le commentaire du workflow raconte
         # justement l'histoire de $GITHUB_REF_NAME, et il a le droit de la citer.
-        actif = "\n".join(l for l in lignes if not l.lstrip().startswith("#"))
+        actives = [l for l in lignes if not l.lstrip().startswith("#")]
 
-        self.assertNotIn("GITHUB_REF_NAME", actif,
+        self.assertNotIn("GITHUB_REF_NAME", "\n".join(actives),
                          "la branche du robot ne doit pas dependre du declencheur")
-        self.assertIn("BRANCHE: main", actif,
+        self.assertIn("BRANCHE: main", [l.strip() for l in actives],
                       "la branche de publication doit etre ecrite noir sur blanc")
-        self.assertEqual(actif.count("$BRANCHE"), 2,
-                         "les deux usages -- le clone et le push -- doivent la lire")
+        for commande in ("git clone", "git push"):
+            self.assertTrue(
+                any(commande in l and "$BRANCHE" in l for l in actives),
+                "%s doit lire la branche declaree, pas la deviner" % commande)
 
     def test_nombre_de_departements_annonce(self):
         """Le nombre de departements annonce au public doit etre le vrai.

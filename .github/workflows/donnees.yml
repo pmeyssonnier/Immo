@@ -83,7 +83,22 @@ jobs:
           git add data
           if git diff --staged --quiet; then
             echo "Aucun changement : les données étaient déjà à jour."
-          else
-            git commit -m "Données DVF mises à jour ($(date +%F))"
-            git push origin "HEAD:$BRANCHE"
+            exit 0
           fi
+          git commit -m "Données DVF mises à jour ($(date +%F))"
+          # La préparation dure quelques minutes. Si quelqu'un pousse sur la
+          # branche pendant ce temps, le push est refusé et tout le travail est
+          # jeté -- c'est arrivé. On rejoue donc le commit par-dessus ce qui est
+          # arrivé entre-temps. Le robot ne touche que data/, et la concurrence
+          # interdit deux robots à la fois : un conflit serait donc anormal, et
+          # doit faire échouer bruyamment plutôt que d'être résolu au hasard.
+          for tentative in 1 2 3; do
+            if git push origin "HEAD:$BRANCHE"; then
+              exit 0
+            fi
+            echo "La branche a bougé pendant la préparation ; on rejoue par-dessus (tentative $tentative)."
+            git fetch origin "$BRANCHE"
+            git rebase "origin/$BRANCHE"
+          done
+          echo "::error::publication impossible après 3 tentatives"
+          exit 1
