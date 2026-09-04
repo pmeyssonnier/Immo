@@ -296,3 +296,10 @@ a { color: var(--accent); }
   border: 1px solid #f0d9b5; padding: 6px 10px; border-radius: 6px;
   font-size: 11.5px; max-width: 260px;
 }
+
+/* Panne de telechargement des ventes : plus voyant que l'absence de fond de
+   carte, parce que la carte est alors reellement incomplete. */
+.avertissement-panne {
+  bottom: 56px; background: rgba(253, 236, 235, .97); color: var(--rouge);
+  border-color: #f3c2bf;
+}

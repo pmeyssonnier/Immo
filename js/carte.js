@@ -18,6 +18,7 @@ let groupeMarqueurs = null;
 let signatureAffichee = null;
 let bandeau = null;
 let avertissementFond = null;
+let avertissementDonnees = null;
 let communesParCode = new Map();
 let seuilsCouleurs = [];
 let anneeOrigine = 2020;
@@ -99,9 +100,11 @@ function legende() {
 export function initialiser(racine, actions) {
   racine.innerHTML = `<div id="carte"></div>
     <div id="avertissement-fond" class="avertissement-carte" hidden></div>
+    <div id="avertissement-donnees" class="avertissement-carte avertissement-panne" hidden></div>
     <div id="bandeau-carte" hidden></div>`;
   bandeau = racine.querySelector("#bandeau-carte");
   avertissementFond = racine.querySelector("#avertissement-fond");
+  avertissementDonnees = racine.querySelector("#avertissement-donnees");
 
   // preferCanvas : indispensable pour afficher des milliers de points sans ramer
   carte = L.map(racine.querySelector("#carte"), {
@@ -208,6 +211,14 @@ export function rendre(etat, actions) {
   communesParCode = new Map(etat.communes.map((c) => [c.code, c]));
   seuilsCouleurs = etat.meta.seuils_couleurs || [];
   anneeOrigine = etat.meta.annee_origine || 2020;
+
+  // Une couche de points incomplète ne doit jamais passer pour complète.
+  if (avertissementDonnees) {
+    avertissementDonnees.textContent = etat.erreurDonnees
+      ? "Certaines ventes n'ont pas pu être téléchargées — la carte est incomplète."
+      : "";
+    avertissementDonnees.hidden = !etat.erreurDonnees;
+  }
 
   if (!coucheCommunes) creerCoucheCommunes(etat, actions);
   // On ne reconstruit pas la couche : on se contente de changer son style.

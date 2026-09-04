@@ -7,10 +7,44 @@
 const cacheVentes = new Map();
 const chargementsEnCours = new Map();
 
+// Delai avant la nouvelle tentative automatique. Court : il ne sert qu'a
+// laisser passer une micro-coupure, pas a attendre un serveur en panne.
+const ATTENTE_NOUVELLE_TENTATIVE = 250;
+
+const attendre = (ms) => new Promise((resoudre) => setTimeout(resoudre, ms));
+
+/**
+ * Fabrique une erreur QUALIFIEE. Le "genre" est ce qui permet de distinguer
+ * une commune sans vente d'une vraie panne -- distinction dont depend
+ * l'honnetete de l'estimation (voir chargerVentes).
+ */
+function erreurDonnees(chemin, statut, genre, message) {
+  return Object.assign(new Error(message), { chemin, statut, genre });
+}
+
 async function lireJson(chemin) {
-  const reponse = await fetch(chemin, { cache: "no-cache" });
-  if (!reponse.ok) throw new Error("Fichier introuvable : " + chemin + " (" + reponse.status + ")");
-  return reponse.json();
+  let reponse;
+  try {
+    reponse = await fetch(chemin, { cache: "no-cache" });
+  } catch (cause) {
+    // fetch ne rejette que si la requete n'a pas pu partir ou aboutir :
+    // pas de reseau, serveur injoignable, connexion coupee.
+    throw erreurDonnees(chemin, 0, "reseau",
+      "Impossible de joindre le serveur (" + chemin + ")");
+  }
+  if (!reponse.ok) {
+    // 404 : le fichier n'existe pas. Pour les ventes, c'est NORMAL et attendu.
+    // Tout autre statut est une panne, et doit le rester.
+    throw erreurDonnees(chemin, reponse.status,
+      reponse.status === 404 ? "absent" : "serveur",
+      "Fichier introuvable : " + chemin + " (" + reponse.status + ")");
+  }
+  try {
+    return await reponse.json();
+  } catch (cause) {
+    throw erreurDonnees(chemin, reponse.status, "illisible",
+      "Fichier illisible, probablement tronque : " + chemin);
+  }
 }
 
 /** Transforme {champs, valeurs} en une liste d'objets. */
@@ -44,29 +78,56 @@ export async function chargerBandes(departement) {
   return lireJson("data/bandes-" + departement + ".json");
 }
 
+function decoderVentes(table, codeCommune) {
+  return table.ventes.map((ligne) => {
+    const vente = {};
+    table.champs.forEach((champ, i) => { vente[champ] = ligne[i]; });
+    vente.code = codeCommune;
+    return vente;
+  });
+}
+
 /**
- * Ventes d'une commune. Charge le fichier au premier appel seulement :
- * les fois suivantes la reponse est immediate.
+ * Telecharge les ventes d'une commune.
+ *
+ * Regle essentielle : SEUL un 404 signifie « cette commune n'a aucune vente ».
+ * Une panne reseau, une erreur serveur ou un fichier tronque doivent remonter.
+ * Sinon l'estimateur croirait la commune vide, s'elargirait aux communes
+ * voisines, et rendrait une estimation degradee sans le dire -- exactement ce
+ * que cette application s'interdit ailleurs.
+ *
+ * Une seule nouvelle tentative, pour absorber les micro-coupures sans faire
+ * patienter l'utilisateur devant un serveur reellement en panne.
+ */
+async function telechargerVentes(codeCommune, departement) {
+  const chemin = "data/ventes/" + departement + "/" + codeCommune + ".json";
+  try {
+    return decoderVentes(await lireJson(chemin), codeCommune);
+  } catch (erreur) {
+    if (erreur.genre === "absent") return [];
+    await attendre(ATTENTE_NOUVELLE_TENTATIVE);
+    try {
+      return decoderVentes(await lireJson(chemin), codeCommune);
+    } catch (secondeErreur) {
+      if (secondeErreur.genre === "absent") return [];
+      throw secondeErreur;
+    }
+  }
+}
+
+/**
+ * Ventes d'une commune. Charge le fichier au premier appel seulement.
+ * En cas d'echec, RIEN n'est mis en cache : une tentative ulterieure
+ * retelechargera vraiment.
  */
 export async function chargerVentes(codeCommune, departement) {
   if (cacheVentes.has(codeCommune)) return cacheVentes.get(codeCommune);
   if (chargementsEnCours.has(codeCommune)) return chargementsEnCours.get(codeCommune);
 
-  const promesse = lireJson("data/ventes/" + departement + "/" + codeCommune + ".json")
-    .then((table) => {
-      const ventes = table.ventes.map((ligne) => {
-        const vente = {};
-        table.champs.forEach((champ, i) => { vente[champ] = ligne[i]; });
-        vente.code = codeCommune;
-        return vente;
-      });
+  const promesse = telechargerVentes(codeCommune, departement)
+    .then((ventes) => {
       cacheVentes.set(codeCommune, ventes);
       return ventes;
-    })
-    .catch(() => {
-      // Une commune sans aucune vente n'a pas de fichier : ce n'est pas une erreur.
-      cacheVentes.set(codeCommune, []);
-      return [];
     })
     .finally(() => chargementsEnCours.delete(codeCommune));
 

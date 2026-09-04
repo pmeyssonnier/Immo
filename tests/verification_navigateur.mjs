@@ -340,6 +340,91 @@ verifier(bloquantes.length === 0, bloquantes.length
   ? `la CSP bloque des ressources nécessaires : ${bloquantes.join(", ")}`
   : `aucune ressource nécessaire bloquée par la politique de sécurité`);
 
+// --- 6 sexies. LA COURSE : estimation de A affichée sous le titre de B -----
+// On ralentit artificiellement le fichier de ventes de Nîmes de 2,5 s, puis on
+// clique Uzès pendant ce temps. Sans garde-fou, les chiffres de Nîmes
+// arrivent en dernier et s'affichent sous le titre « Uzès ».
+// Rechargement préalable : la page garde les ventes en cache, et un fichier
+// déjà chargé ne serait pas retéléchargé, donc pas ralenti.
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForSelector("#application:not([hidden])");
+await page.waitForTimeout(800);
+
+async function estimer(codeCommune, nomRecherche, surface) {
+  await page.fill("#champ-recherche", nomRecherche);
+  await page.waitForTimeout(300);
+  await page.evaluate((c) => document.querySelector(`#liste-communes li[data-code="${c}"]`).click(),
+    codeCommune);
+  await page.waitForTimeout(400);
+  await page.fill("#surface-habitable", String(surface));
+  await page.click(".bouton-principal");
+}
+
+// (a) référence : une estimation à 120 m² sur Nîmes, sans ralentissement
+await estimer("30189", "nimes", 120);
+await page.waitForSelector(".valeur-principale", { timeout: 15000 });
+const valeur120 = await page.locator(".valeur-principale").innerText();
+
+// (b) la course proprement dite
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForSelector("#application:not([hidden])");
+await page.waitForTimeout(800);
+await page.route("**/data/ventes/30/30189.json", async (route) => {
+  await new Promise((r) => setTimeout(r, 2500));
+  await route.continue();
+});
+
+await estimer("30189", "nimes", 120);          // Nîmes : lent
+await page.waitForTimeout(300);
+await page.fill("#champ-recherche", "uzes");   // on part sur Uzès sans attendre
+await page.waitForTimeout(300);
+await page.evaluate(() => document.querySelector('#liste-communes li[data-code="30334"]').click());
+await page.waitForTimeout(4500);               // Nîmes a largement fini entre-temps
+
+const titreAffiche = (await page.locator("#panneau-droit h2").innerText()).trim();
+const valeursAffichees = await page.locator(".valeur-principale").count();
+const enCours = await page.locator("#resultat-estimation .chargement").count();
+verifier(titreAffiche === "Uzès", `le panneau affiche « ${titreAffiche} »`);
+verifier(valeursAffichees === 0,
+  valeursAffichees === 0
+    ? "aucun montant de Nîmes ne s'affiche sous le titre d'Uzès"
+    : `ATTENTION : ${valeursAffichees} montant affiché sous « ${titreAffiche} » — `
+      + `« ${await page.locator(".valeur-principale").first().innerText()} »`);
+verifier(enCours === 0, "aucun indicateur de chargement resté bloqué");
+
+// (c) fermer le panneau pendant une estimation — on exerce le chemin, SANS
+// prétendre le vérifier. Deux cas ont été retirés d'ici parce qu'ils passaient
+// avec ET sans correctif, donc ne prouvaient rien :
+//   - « deux estimations sur la même commune » : les deux requêtes attendent le
+//     même fichier, donc le même cache ; elles se résolvent forcément dans
+//     l'ordre. Couvert au niveau logique dans tests/test_demandes.mjs.
+//   - « l'indicateur reste bloqué après fermeture » : rouvrir la commune passe
+//     par selectionnerCommune, qui remet déjà l'indicateur à zéro. Le correctif
+//     de fermer() reste juste — il évite d'enregistrer un résultat arrivé après
+//     la fermeture — mais je n'ai pas su construire de scénario où le défaut
+//     est observable depuis l'interface.
+// Ce qui suit reste utile : si ce chemin levait une exception, le contrôle
+// « aucune erreur JavaScript » en fin de fichier la signalerait.
+await estimer("30189", "nimes", 120);
+await page.waitForTimeout(400);
+await page.click("#fermer-panneau");
+await page.waitForTimeout(3500);
+await page.unroute("**/data/ventes/30/30189.json");
+
+// --- 6 septies. une panne réseau ne devient pas « aucune vente » -----------
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForSelector("#application:not([hidden])");
+await page.waitForTimeout(800);
+await page.route("**/data/ventes/30/30189.json", (route) => route.abort("failed"));
+await estimer("30189", "nimes", 120);
+await page.waitForTimeout(3000);
+const texteResultat = await page.locator("#resultat-estimation").innerText();
+verifier(/n'ont pas pu être téléchargées/.test(texteResultat),
+  "une panne réseau affiche un message clair, pas une estimation dégradée");
+verifier((await page.locator(".valeur-principale").count()) === 0,
+  "aucun montant calculé sur les communes voisines en cas de panne");
+await page.unroute("**/data/ventes/30/30189.json");
+
 // --- 7. aucune erreur JavaScript -----------------------------------------
 const vraiesErreurs = erreurs.filter((e) => !/tile|ERR_|net::|Failed to load resource/i.test(e));
 verifier(vraiesErreurs.length === 0,

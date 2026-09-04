@@ -127,8 +127,24 @@ function blocResultat(etat) {
   if (etat.estimationEnCours) {
     return `<p class="chargement">Recherche des ventes comparables…</p>`;
   }
+
+  if (etat.erreurEstimation) {
+    // Une panne de téléchargement n'est pas une absence de ventes : on le dit,
+    // plutôt que d'afficher une estimation calculée sur des données partielles.
+    return `<div class="resultat refus">
+      <p class="refus-titre">Les ventes de cette commune n'ont pas pu être téléchargées.</p>
+      <p>Vérifiez votre connexion, puis appuyez de nouveau sur « Estimer ».</p>
+      <p class="detail">${echapper(etat.erreurEstimation)}</p>
+    </div>`;
+  }
+
   const resultat = etat.estimation;
   if (!resultat) return "";
+
+  // Deuxième barrière contre l'affichage croisé : un résultat porte le code de
+  // la commune pour laquelle il a été calculé. S'il ne correspond pas à la
+  // commune affichée, on n'affiche RIEN plutôt qu'un montant trompeur.
+  if (resultat.code && resultat.code !== etat.communeSelectionnee) return "";
 
   const [titre, explication] = LIBELLES_CONFIANCE[resultat.confiance];
 
@@ -201,6 +217,7 @@ export function rendre(etat) {
   racineElement.hidden = false;
 
   const empreinte = [etat.communeSelectionnee, etat.estimationEnCours,
+    etat.erreurEstimation,
     etat.estimation ? etat.estimation.horodatage : null].join("\u0001");
   if (empreinte === derniereEmpreinte) return;
   derniereEmpreinte = empreinte;

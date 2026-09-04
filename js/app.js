@@ -9,6 +9,7 @@
 import { CONFIG } from "./config.js";
 import { echapper } from "./format.js";
 import { chargerAdjacence, chargerBandes, chargerBase, chargerVentes } from "./donnees.js";
+import { creerSuiviDeDemandes } from "./demandes.js";
 import { estimer, estimerParBandes } from "./estimation.js";
 import * as liste from "./liste.js";
 import * as carte from "./carte.js";
@@ -33,7 +34,13 @@ const etat = {
   estimation: null,
   estimationEnCours: false,
   parametresEstimation: null,
+  erreurEstimation: null,      // panne pendant une estimation
+  erreurDonnees: null,         // panne pendant le chargement de la carte
 };
+
+// Un seul suivi pour toute l'application : une commune choisie perime
+// l'estimation en cours, et reciproquement.
+const demandes = creerSuiviDeDemandes();
 
 const abonnes = [];
 function majEtat(modifications) {
@@ -80,7 +87,14 @@ async function lancerEstimation(parametres) {
   const commune = etat.communes.find((c) => c.code === code);
   if (!commune) return;
 
-  majEtat({ estimationEnCours: true, estimation: null, parametresEstimation: parametres });
+  // Numero de cette demande. Apres CHAQUE attente on verifiera qu'aucune
+  // demande plus recente n'est partie : sans cela, une estimation lente pour
+  // Nimes viendrait s'afficher sous le titre d'Uzes.
+  const jeton = demandes.nouvelle();
+  majEtat({
+    estimationEnCours: true, estimation: null, erreurEstimation: null,
+    parametresEstimation: parametres,
+  });
 
   const commun = {
     surface: parametres.surface,
@@ -93,41 +107,61 @@ async function lancerEstimation(parametres) {
     indicesAnnuels: etat.meta.indice_prix[commune.dep] || {},
   };
 
-  // --- palier 0 -----------------------------------------------------------
-  await assurerVentes([code]);
-  const ventesCommune = (etat.ventesParCommune[code] || [])
-    .map((v) => ({ ...v, voisine: false }));
-  let resultat = estimer({ ...commun, ventes: ventesCommune, palier: 0 });
+  try {
+    // --- palier 0 ---------------------------------------------------------
+    // Si le telechargement echoue vraiment, il leve : on saute directement au
+    // catch. C'est voulu. Une panne de reseau n'est PAS une absence de ventes,
+    // on ne se rabat donc ni sur les communes voisines ni sur le departement.
+    await assurerVentes([code]);
+    if (!demandes.estLaDerniere(jeton)) return;
 
-  // --- palier 1 -----------------------------------------------------------
-  if (!resultat.suffisant) {
-    const voisines = (await assurerAdjacence())[code] || [];
-    if (voisines.length) {
-      await assurerVentes(voisines);
-      const ventesVoisines = voisines.flatMap(
-        (autre) => (etat.ventesParCommune[autre] || []).map((v) => ({ ...v, voisine: true })),
-      );
-      const elargi = estimer({
-        ...commun, ventes: ventesCommune.concat(ventesVoisines), palier: 1,
-      });
-      if (elargi.nEffectif > resultat.nEffectif) resultat = elargi;
+    const ventesCommune = (etat.ventesParCommune[code] || [])
+      .map((v) => ({ ...v, voisine: false }));
+    let resultat = estimer({ ...commun, ventes: ventesCommune, palier: 0 });
+
+    // --- palier 1 ---------------------------------------------------------
+    if (!resultat.suffisant) {
+      const adjacence = await assurerAdjacence();
+      if (!demandes.estLaDerniere(jeton)) return;
+
+      const voisines = adjacence[code] || [];
+      if (voisines.length) {
+        await assurerVentes(voisines);
+        if (!demandes.estLaDerniere(jeton)) return;
+
+        const ventesVoisines = voisines.flatMap(
+          (autre) => (etat.ventesParCommune[autre] || []).map((v) => ({ ...v, voisine: true })),
+        );
+        const elargi = estimer({
+          ...commun, ventes: ventesCommune.concat(ventesVoisines), palier: 1,
+        });
+        if (elargi.nEffectif > resultat.nEffectif) resultat = elargi;
+      }
     }
-  }
 
-  // --- palier 2 -----------------------------------------------------------
-  if (resultat.valeur === null) {
-    try {
+    // --- palier 2 ---------------------------------------------------------
+    if (resultat.valeur === null) {
       const bandes = await assurerBandes(commune.dep);
+      if (!demandes.estLaDerniere(jeton)) return;
+
       const repli = estimerParBandes({ bandes, surface: parametres.surface });
       if (repli.valeur !== null) resultat = repli;
-    } catch (erreur) {
-      // pas de table de repli : on garde le refus, c'est le comportement honnete
     }
-  }
 
-  // horodatage : permet au panneau de detecter un NOUVEAU resultat, meme si
-  // les chiffres sont identiques au precedent.
-  majEtat({ estimation: { ...resultat, horodatage: Date.now() }, estimationEnCours: false });
+    if (!demandes.estLaDerniere(jeton)) return;
+    // Le resultat porte le code de sa commune : le panneau refusera de
+    // l'afficher sous une autre. Deuxieme barriere, apres le numero de demande.
+    majEtat({
+      estimation: { ...resultat, code, horodatage: Date.now() },
+      estimationEnCours: false,
+    });
+  } catch (erreur) {
+    if (!demandes.estLaDerniere(jeton)) return;
+    majEtat({
+      estimationEnCours: false, estimation: null,
+      erreurEstimation: erreur && erreur.message ? erreur.message : String(erreur),
+    });
+  }
 }
 
 // --------------------------------------------------------------------------
@@ -142,20 +176,46 @@ const actions = {
 
   async selectionnerCommune(code) {
     const commune = etat.communes.find((c) => c.code === code);
+    const jeton = demandes.nouvelle();
     majEtat({
       communeSelectionnee: code, estimation: null, estimationEnCours: false,
+      erreurEstimation: null,
     });
-    await assurerVentes([code]);
-    majEtat({});
+
+    // Le recentrage n'a pas besoin des ventes : on le fait AVANT l'attente.
+    // La carte reagit donc immediatement, et surtout plus aucune variable
+    // capturee ne sert apres l'attente -- la commune A ne peut plus voler la
+    // vue a la commune B choisie entre-temps.
     if (commune && commune.lat !== null && commandesCarte) {
       commandesCarte.centrerSur(commune.lat, commune.lon, Math.max(etat.zoom, 12));
+    }
+
+    try {
+      await assurerVentes([code]);
+      if (!demandes.estLaDerniere(jeton)) return;
+      majEtat({});
+    } catch (erreur) {
+      if (!demandes.estLaDerniere(jeton)) return;
+      majEtat({ erreurDonnees: erreur.message });
     }
   },
 
   fermer() {
-    majEtat({ communeSelectionnee: null, estimation: null });
+    // Fermer le panneau perime la demande en cours : un resultat qui arriverait
+    // apres ne doit pas etre enregistre. Et estimationEnCours doit repasser a
+    // false ici -- c'etait le seul chemin qui pouvait laisser
+    // « Recherche des comparables... » tourner sans fin.
+    demandes.nouvelle();
+    majEtat({
+      communeSelectionnee: null, estimation: null,
+      estimationEnCours: false, erreurEstimation: null,
+    });
   },
 
+  // Volontairement SANS numero de demande : cette action ne capture aucune
+  // variable avant son attente et se contente de repeindre depuis l'etat
+  // courant, ce qui est toujours juste. Lui en donner un annulerait une
+  // estimation legitime des que l'utilisateur deplace la carte.
   async majVue({ zoom, bbox }) {
     majEtat({ zoom, bbox });
     // en mode "ventes" sans commune choisie, on precharge ce qui est a l'ecran
@@ -164,8 +224,13 @@ const actions = {
         (c) => c.lat !== null && c.n > 0 && bbox.contains([c.lat, c.lon]),
       );
       if (visibles.length && visibles.length <= CONFIG.MAX_COMMUNES_SIMULTANEES) {
-        await assurerVentes(visibles.map((c) => c.code));
-        majEtat({});
+        try {
+          await assurerVentes(visibles.map((c) => c.code));
+          majEtat({});
+        } catch (erreur) {
+          // La carte doit rester utilisable : on signale, on ne bloque pas.
+          majEtat({ erreurDonnees: erreur.message });
+        }
       }
     }
   },
