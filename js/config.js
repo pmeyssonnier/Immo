@@ -22,7 +22,17 @@ export const CONFIG = {
 
   // Palette du plus clair (le moins cher) au plus fonce (le plus cher).
   // Sequence "YlOrRd" : lisible aussi par les personnes daltoniennes.
-  COULEURS: ["#ffffb2", "#fed976", "#feb24c", "#fd8d3c", "#fc4e2a", "#e31a1c", "#b10026"],
+  // Palette YlOrRd de ColorBrewer, version a NEUF classes -- la meme famille
+  // qu'avant, qui en utilisait sept. Neuf et non dix : la mesure montre que dix
+  // n'apporte rien de plus pour Marseille (4 teintes dans les deux cas), et neuf
+  // existe telle quelle, sans inventer de couleur.
+  //
+  // Le nombre de couleurs DOIT valoir le nombre de seuils + 1, sinon
+  // couleurPrix() plafonne sur la derniere et les bandes hautes deviennent
+  // indistinguables -- ce qui annulerait tout le benefice de l'echelle ponderee.
+  // Un test verifie cette egalite contre data/meta.json.
+  COULEURS: ["#ffffcc", "#ffeda0", "#fed976", "#feb24c", "#fd8d3c",
+             "#fc4e2a", "#e31a1c", "#bd0026", "#800026"],
   COULEUR_SANS_DONNEES: "#d9d9d9",
 
   // Departements couverts, dans l'ordre d'affichage de la liste.

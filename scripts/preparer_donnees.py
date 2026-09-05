@@ -1173,10 +1173,37 @@ def construire_sorties(ventes, contours, adjacence, centroides, noms_communes,
                              v["lat"], v["lon"], v["adresse"]] for v in liste]},
             )
 
-    # seuils de couleur : quantiles des medianes communales (7 classes)
-    medianes = sorted(l[6] for l in lignes_communes if l[6] is not None)
-    seuils = [round(quantile(medianes, q)) for q in (1/7, 2/7, 3/7, 4/7, 5/7, 6/7)] \
-        if len(medianes) >= 7 else []
+    # Seuils de couleur : quantiles des medianes communales, PONDERES PAR LES
+    # VENTES.
+    #
+    # L'ancienne version comptait une commune pour une voix, quelles que soient
+    # ses ventes. Avec 8 263 communes tres majoritairement rurales, le dernier
+    # seuil tombait a 3 042 EUR/m2 : du 15e au 7e arrondissement de Marseille --
+    # de 3 220 a 8 443 EUR/m2 -- tout etait de la meme teinte, et les Bouches-du-
+    # Rhone tenaient a 86 % dans une seule couleur.
+    #
+    # Quatre schemas ont ete mesures sur les donnees reelles. Ajouter des classes
+    # sans ponderer ne change presque rien (Marseille passe de 2 teintes sur 7 a
+    # 2 sur 10) : c'est la ponderation qui compte. Et ce n'est pas un compromis au
+    # detriment des campagnes, au contraire -- le Gard passe de 7 teintes sur 7,
+    # dont 32 % dans la plus frequente, a 9 sur 9 avec 20 %. Il gagne en finesse.
+    #
+    # Neuf classes et non dix : la mesure donne le meme resultat pour Marseille
+    # (4 teintes) et cela permet d'utiliser une palette standard existante plutot
+    # que d'inventer une dixieme couleur.
+    #
+    # Une commune compte une voix par tranche de 5 ventes, au minimum une : sans
+    # ce minimum, les communes a moins de 5 ventes disparaitraient du calcul.
+    CLASSES_COULEUR = 9
+    ponderees = []
+    for ligne in lignes_communes:
+        if ligne[6] is None:
+            continue
+        ponderees += [ligne[6]] * max(1, ligne[5] // 5)
+    ponderees.sort()
+    seuils = [round(quantile(ponderees, k / CLASSES_COULEUR))
+              for k in range(1, CLASSES_COULEUR)] \
+        if len(ponderees) >= CLASSES_COULEUR else []
 
     ecrire_json(os.path.join(dossier, "communes.json"),
                 {"champs": CHAMPS_COMMUNE, "valeurs": lignes_communes})
