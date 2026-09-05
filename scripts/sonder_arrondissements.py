@@ -74,9 +74,11 @@ def lire(url, delai=DELAI):
                 "duree": time.time() - debut, "type": ""}
 
 
-def codes_du_geojson(charge):
+def codes_du_geojson(charge, champs_vus=None):
     """Recupere les codes, quel que soit le nom du champ selon la source."""
     codes = {}
+    if champs_vus is None:
+        champs_vus = set()
     entites = charge.get("features", charge if isinstance(charge, list) else [])
     for e in entites:
         props = e.get("properties", e) or {}
@@ -87,6 +89,7 @@ def codes_du_geojson(charge):
                 valeur = valeur[0]
             if valeur and str(valeur) in ATTENDUS:
                 codes[str(valeur)] = e
+                champs_vus.add(cle)
                 break
     return codes
 
@@ -114,6 +117,13 @@ def poids_apres_simplification(entites):
 # --------------------------------------------------------------------------
 
 CANDIDATES = [
+    ("OpenDataSoft FILTRE sur com_arm_code -- 292 Mo -> ?",
+     "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-commune-arrondissement-municipal/exports/geojson?limit=-1&where=com_arm_code%20in%20%28%2213201%22%2C%2213202%22%2C%2213203%22%2C%2213204%22%2C%2213205%22%2C%2213206%22%2C%2213207%22%2C%2213208%22%2C%2213209%22%2C%2213210%22%2C%2213211%22%2C%2213212%22%2C%2213213%22%2C%2213214%22%2C%2213215%22%2C%2213216%22%2C%2269381%22%2C%2269382%22%2C%2269383%22%2C%2269384%22%2C%2269385%22%2C%2269386%22%2C%2269387%22%2C%2269388%22%2C%2269389%22%29",
+     "Licence Ouverte (Etalab)"),
+
+    ("OpenDataSoft FILTRE sur com_code -- 292 Mo -> ?",
+     "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-commune-arrondissement-municipal/exports/geojson?limit=-1&where=com_code%20in%20%28%2213201%22%2C%2213202%22%2C%2213203%22%2C%2213204%22%2C%2213205%22%2C%2213206%22%2C%2213207%22%2C%2213208%22%2C%2213209%22%2C%2213210%22%2C%2213211%22%2C%2213212%22%2C%2213213%22%2C%2213214%22%2C%2213215%22%2C%2213216%22%2C%2269381%22%2C%2269382%22%2C%2269383%22%2C%2269384%22%2C%2269385%22%2C%2269386%22%2C%2269387%22%2C%2269388%22%2C%2269389%22%29",
+     "Licence Ouverte (Etalab)"),
     ("API Geo (etat) -- arrondissements comme communes ?",
      "https://geo.api.gouv.fr/communes/13201?fields=code,nom,contour&format=geojson",
      "Licence Ouverte (Etalab), a confirmer"),
@@ -162,7 +172,10 @@ def essayer(nom, url, licence):
                     journal("        %s  ->  %s" % (r.get("format"), (r.get("url") or "")[:90]))
         return None
 
-    trouves = codes_du_geojson(charge)
+    champs_vus = set()
+    trouves = codes_du_geojson(charge, champs_vus)
+    if champs_vus:
+        journal("  champ portant le code : %s" % ", ".join(sorted(champs_vus)))
     manquants = sorted(ATTENDUS - set(trouves))
     journal("  codes DVF trouves : %d / 25" % len(trouves))
     if manquants:
