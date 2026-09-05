@@ -817,7 +817,15 @@ def substituer_arrondissements(geojsons, dossier_temporaire):
                 charge = {}
             par_code = {}
             for entite in charge.get("features", []) or []:
-                code = str((entite.get("properties") or {}).get("com_arm_code") or "")
+                # OpenDataSoft rend ce champ comme une LISTE -- ["13201"] et non
+                # "13201". La sonde le savait, le robot l'ignorait : str(["13201"])
+                # donne "['13201']", qui ne correspond a rien, et les 25 entites
+                # arrivaient sans qu'aucune soit reconnue. C'est ce que le message
+                # de diagnostic a revele : « 25 entite(s) recue(s), 0 reconnue(s) ».
+                brut = (entite.get("properties") or {}).get("com_arm_code")
+                if isinstance(brut, list):
+                    brut = brut[0] if brut else None
+                code = str(brut or "")
                 if code in CODES_ARRONDISSEMENTS:
                     # Format des autres contours : seul "code" est lu ensuite.
                     entite["properties"] = {"code": code}

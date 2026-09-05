@@ -395,6 +395,24 @@ class TestArrondissements(unittest.TestCase):
         return {"13": {"features": [commune("13055"), commune("13001")]},
                 "69": {"features": [commune("69123"), commune("69003")]}}
 
+    def test_le_code_rendu_comme_une_liste_est_compris(self):
+        """OpenDataSoft rend com_arm_code sous forme de liste : ["13201"].
+
+        C'est ce qui a fait echouer deux passages du robot. Les 25 entites
+        arrivaient bien, mais str(["13201"]) donne "['13201']", donc aucune
+        n'etait reconnue. Ce test fige la forme reelle de la source.
+        """
+        charge = self._complet()
+        for entite in charge["features"]:
+            entite["properties"]["com_arm_code"] = [entite["properties"]["com_arm_code"]]
+        self._repondre([charge])
+        geojsons = self._geojsons()
+        prep.substituer_arrondissements(geojsons, tempfile.mkdtemp())
+        self.assertEqual(len(self.appels), 1, "aucun reessai ne doit etre necessaire")
+        codes = {e["properties"]["code"] for e in geojsons["69"]["features"]}
+        self.assertNotIn("69123", codes)
+        self.assertIn("69385", codes)
+
     def test_une_reponse_vide_est_rejouee(self):
         vide = {"type": "FeatureCollection", "features": []}
         self._repondre([vide, self._complet()])
