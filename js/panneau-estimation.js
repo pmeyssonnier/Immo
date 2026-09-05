@@ -63,12 +63,59 @@ function lireFormulaire() {
   };
 }
 
+// Bornes du formulaire, en un seul endroit. Elles doivent rester d'accord avec
+// les attributs min/max des champs -- un test le verifie, en lisant le HTML
+// produit plutot qu'en recopiant les chiffres.
+const BORNES = {
+  surface: { min: 15, max: 600, obligatoire: true,
+             message: "Indiquez une surface habitable comprise entre 15 et 600 m²." },
+  terrain: { min: 0, max: 100000, obligatoire: false,
+             message: "La surface du terrain doit être comprise entre 0 et 100 000 m²." },
+  pieces: { min: 1, max: 20, obligatoire: false,
+            message: "Le nombre de pièces doit être compris entre 1 et 20." },
+};
+
+/**
+ * Valide TOUT le formulaire, quel que soit le chemin emprunte.
+ *
+ * Le bouton « Estimer » passait par le submit, donc par la validation native du
+ * navigateur ; la case « ajuster le terrain » appelle lancer() directement et la
+ * contournait. Un terrain a -500 suivi d'un clic sur la case relancait le calcul
+ * avec cette valeur. La validation vit donc ici, sur le seul chemin commun.
+ *
+ * checkValidity() ne suffit pas : il ne voit rien d'une valeur posee par
+ * programme, ni d'un champ desactive. Les bornes sont donc revérifiées.
+ */
+function valider(parametres) {
+  const formulaire = racineElement.querySelector("#formulaire-estimation");
+  if (formulaire && !formulaire.checkValidity()) {
+    formulaire.reportValidity();
+    // On EFFACE aussi le resultat precedent. Laisser affiche un montant qui ne
+    // correspond plus aux valeurs saisies serait trompeur -- pour un avis de
+    // valeur, c'est le genre de chiffre qu'on recopie sans regarder l'entree.
+    afficherErreur("Corrigez les valeurs signalées avant de relancer l'estimation.");
+    return false;
+  }
+  for (const [nom, borne] of Object.entries(BORNES)) {
+    const valeur = parametres[nom];
+    if (valeur === null || valeur === undefined) {
+      if (borne.obligatoire) {
+        afficherErreur(borne.message);
+        return false;
+      }
+      continue;
+    }
+    if (!isFinite(valeur) || valeur < borne.min || valeur > borne.max) {
+      afficherErreur(borne.message);
+      return false;
+    }
+  }
+  return true;
+}
+
 function lancer() {
   const parametres = lireFormulaire();
-  if (!parametres.surface || parametres.surface < 15 || parametres.surface > 600) {
-    afficherErreur("Indiquez une surface habitable comprise entre 15 et 600 m².");
-    return;
-  }
+  if (!valider(parametres)) return;
   actionsElement.estimer(parametres);
 }
 
