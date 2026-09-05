@@ -12,9 +12,10 @@ let compteur = null;
 // Empreinte du dernier rendu : elle evite de reconstruire les milliers de
 // lignes a chaque deplacement de la carte (ce qui ferait sauter le defilement).
 let derniereEmpreinte = null;
-// Departements que l'utilisateur a ouverts a la main. Avec quatorze groupes et
-// pres de quatre mille communes, tout deplier au demarrage donnerait une liste
-// interminable : on part donc replie, et on se souvient de ce qui a ete ouvert.
+// Departements que l'utilisateur a ouverts a la main. Avec vingt et un groupes
+// et plusieurs milliers de communes, tout deplier au demarrage donnerait une
+// liste interminable : on part donc replie, et on se souvient de ce qui a ete
+// ouvert.
 const departementsOuverts = new Set();
 
 export function initialiser(racine, actions) {
@@ -178,8 +179,9 @@ function morceauxGroupes(etat, seuils) {
  * On aplatit parce qu'un classement par pertinence n'a de sens qu'a plat :
  * garder les groupes obligerait a classer les departements entre eux, ce qui
  * n'a aucun rapport avec ce qui est cherche. Le nom du departement passe donc
- * sur chaque ligne, et ce n'est pas decoratif : 95 communes de ces quatorze
- * departements portent le meme nom qu'une autre, dont quatre « La Garde ».
+ * sur chaque ligne, et ce n'est pas decoratif : 95 communes portaient le meme
+ * nom qu'une autre, dont quatre « La Garde » -- compte etabli sur les 14
+ * departements d'alors, donc plancher depuis l'ajout des 7 d'Occitanie.
  */
 function morceauxResultats(resultats, etat, seuils) {
   const morceaux = ["<ul class=\"resultats\">"];

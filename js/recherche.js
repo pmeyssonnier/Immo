@@ -19,8 +19,9 @@ import { CONFIG } from "./config.js";
 import { sansAccents } from "./format.js";
 
 // Les abreviations que les gens ecrivent. Verifie sur les donnees reelles :
-// AUCUN nom de commune des quatorze departements n'est ecrit "St" ou "Ste" --
-// les 521 "Saint" et 39 "Sainte" sont en toutes lettres. Cette table ne sert
+// AUCUN nom de commune n'etait ecrit "St" ou "Ste" -- les 521 "Saint" et 39
+// "Sainte" sont en toutes lettres. Releve sur les 14 departements d'alors ;
+// a reverifier apres l'arrivee des 7 d'Occitanie. Cette table ne sert
 // donc qu'a la SAISIE ; on l'applique quand meme aux deux cotes, par symetrie.
 const ABREGES = { st: "saint", ste: "sainte" };
 
