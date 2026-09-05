@@ -1,0 +1,69 @@
+# Sonde : trouver les contours des arrondissements de Marseille et Lyon.
+#
+# Comme sonde.yml, ce workflow MESURE et ne construit rien. Il n'ecrit pas dans
+# data/, ne commit rien : il imprime des chiffres dans le resume du run.
+#
+# Il existe parce que l'environnement de developpement ne joint que GitHub :
+# impossible d'y tester geo.api.gouv.fr, data.gouv.fr ou OpenDataSoft. Les
+# serveurs de GitHub, eux, ont le reseau complet -- c'est de la qu'on mesure.
+#
+# Garde-fou : « permissions: contents: read ». Ce job ne PEUT PAS ecrire dans le
+# depot, meme si quelqu'un y ajoutait un git push par erreur.
+#
+# Aucune action externe, comme les autres workflows du depot.
+
+name: Sonde arrondissements
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      # Modifier la sonde la relance : c'est ainsi qu'on l'execute depuis une
+      # branche de travail, ou le bouton « Run workflow » n'apparait pas.
+      - "scripts/sonder_arrondissements.py"
+      - ".github/workflows/sonde-arrondissements.yml"
+
+permissions:
+  contents: read           # LECTURE SEULE : ce job ne peut rien enregistrer
+
+concurrency:
+  group: sonde-arrondissements-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mesurer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Récupérer le code
+        run: |
+          git clone --depth 1 --branch "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" .
+
+      - name: Chercher une source de contours
+        run: |
+          set -o pipefail
+          python3 scripts/sonder_arrondissements.py 2>&1 | tee rapport-arrondissements.txt
+
+      - name: Publier le rapport
+        if: always()
+        run: |
+          {
+            echo '## Sonde : contours des arrondissements'
+            echo
+            echo 'Aucune donnée du site n’a été modifiée : ce job est en lecture seule.'
+            echo
+            echo '```'
+            cat rapport-arrondissements.txt 2>/dev/null || echo '(aucun rapport produit)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Vérifier qu'aucune donnée n'a été touchée
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain -- data)" ]; then
+            echo "::error::la sonde a modifié data/ — c'est interdit"
+            git status --porcelain -- data
+            exit 1
+          fi
+          echo "data/ est intact, comme prévu."
