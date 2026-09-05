@@ -61,6 +61,41 @@ test("les abreviations verifiees une par une sur les donnees", () => {
   }
 });
 
+test("les abreviations qui ne s'expliquent jamais toutes seules", () => {
+  // Celles-ci ne sont JAMAIS suivies de leur propre sens dans les donnees --
+  // « RLE DE LA ... », « CTRE LES HAUTS ... », « ART DE MORMOIRON ». Sans la
+  // table, taper « ruelle », « centre » ou « ancienne route » ne trouvait rien.
+  //
+  // A l'inverse GR et VTE ont ete ECARTES : releve sur les 365 316 adresses,
+  // ils sont toujours suivis de leur developpement (« GR GRAND RUE », « VTE
+  // VIEILLE ROUTE »), donc ces voies se trouvaient deja. Les ajouter n'aurait
+  // fait que dupliquer le texte indexe.
+  for (const [abrege, complet] of [["RLE DE L EGLISE", "ruelle de l eglise"],
+                                   ["RLE SAINT MARTIN", "ruelle saint martin"],
+                                   ["CTRE LES HAUTS DE NIMES", "centre les hauts de nimes"]]) {
+    assert.equal(normaliserAdresse(abrege).colle, normaliserAdresse(complet).colle, abrege);
+  }
+  // ART est suivi tantot de son sens, tantot de rien : la voie doit se trouver
+  // dans les deux cas.
+  const cherche = (indexee, saisie) => {
+    const a = normaliserAdresse(indexee);
+    return normaliserAdresse(saisie).mots.every((mot) => a.colle.includes(mot));
+  };
+  assert.ok(cherche("ART DE MORMOIRON", "ancienne route de mormoiron"),
+            "« ART DE MORMOIRON » doit se trouver en tapant « ancienne route »");
+  assert.ok(cherche("ART ANC RTE ST PAUL EN FORET", "ancienne route saint paul"));
+});
+
+test("les noms de communes ne deviennent pas des adresses", () => {
+  // Garde-fou : « ruelle » et « centre » entrent dans le vocabulaire des voies.
+  // Aucune commune ne doit basculer du cote « adresse » a cause de ca, sinon la
+  // recherche de villes changerait de mode toute seule.
+  for (const ville of ["La Grand-Combe", "Le Grand-Serre", "La Bâtie-Vieille",
+                       "Château-Ville-Vieille", "Vieille-Toulouse"]) {
+    assert.ok(!ressembleAUneAdresse(ville), `« ${ville} » reste une commune`);
+  }
+});
+
 test("le numero de voirie est mis de côté, pas mélangé au nom", () => {
   assert.equal(normaliserAdresse("12 RUE AMPERE").numero, "12");
   assert.equal(normaliserAdresse("12 RUE AMPERE").colle, normaliserAdresse("RUE AMPERE").colle);

@@ -27,9 +27,22 @@ import { normaliser } from "./recherche.js";
  *
  * L'expansion s'applique aux DEUX cotes -- l'adresse indexee comme la saisie --
  * si bien que "chemin", "che" et "chem" se rejoignent tous sur "chemin".
+ *
+ * Une abreviation n'entre ici que si elle apporte quelque chose. Beaucoup
+ * s'expliquent toutes seules : releve sur les 365 316 adresses des quatorze
+ * departements, GR est TOUJOURS suivi de "GRAND RUE" ou "GRANDE RUE" (1 293
+ * cas), et VTE de "VIEILLE ROUTE" ou "VIEILLE RTE" (104 cas). Ces voies se
+ * trouvent donc deja sans rien ajouter, et les inscrire ici ne ferait que
+ * dupliquer le texte indexe -- "GR GRAND RUE" deviendrait "grandruegrandrue",
+ * ce qui degrade le classement sans rien gagner. Elles sont volontairement
+ * absentes. RLE, CTRE et ART, eux, ne s'expliquent jamais ("RLE DE LA ...",
+ * "CTRE LES HAUTS ...", "ART DE MORMOIRON") : sans eux, taper "ruelle",
+ * "centre" ou "ancienne route" ne trouvait rien.
  */
 const ABREGES_VOIE = {
   rue: "rue",
+  rle: "ruelle", ruelle: "ruelle",
+  ctre: "centre", centre: "centre",
   che: "chemin", chem: "chemin", chemin: "chemin", cami: "chemin",
   av: "avenue", ave: "avenue", avenue: "avenue",
   imp: "impasse", impasse: "impasse",
@@ -56,6 +69,7 @@ const ABREGES_VOIE = {
   sen: "sente", sente: "sente",
   pte: "porte", porte: "porte",
   ach: "ancien chemin",
+  art: "ancienne route",
   rpt: "rond point",
   vc: "voie communale",
   za: "zone artisanale",
