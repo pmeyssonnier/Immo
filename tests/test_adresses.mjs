@@ -86,6 +86,30 @@ test("les abreviations qui ne s'expliquent jamais toutes seules", () => {
   assert.ok(cherche("ART ANC RTE ST PAUL EN FORET", "ancienne route saint paul"));
 });
 
+test("« GR » est une abreviation, « grande » n'est pas un signal", () => {
+  // Releve initial sur 14 departements : GR etait TOUJOURS suivi de son propre
+  // sens (« GR GRAND RUE »), donc inutile. L'arrivee de Rhone-Alpes a dementi
+  // ce constat : on y trouve « GR RUE DE LA ... » 579 fois, sans developpement.
+  const trouve = (indexee, saisie) => {
+    const a = normaliserAdresse(indexee);
+    return normaliserAdresse(saisie).mots.every((mot) => a.colle.includes(mot));
+  };
+  assert.ok(trouve("GR RUE DE LA REPUBLIQUE", "grande rue de la republique"),
+            "« GR RUE DE LA ... » doit se trouver en tapant « grande rue »");
+  assert.ok(trouve("GR GRANDE RUE", "grande rue"), "la forme deja developpee reste trouvable");
+  assert.ok(trouve("GR GRAND RUE", "grand rue"));
+
+  // MAIS « grande » ne doit PAS faire basculer la recherche en mode adresse :
+  // c'est un developpement, pas un signal. Deux communes portent ce mot, dont
+  // La Grande-Motte ; les traiter comme des adresses telechargerait l'annuaire
+  // (1,5 Mo) pour un simple nom de ville.
+  for (const ville of ["La Grande-Motte", "Peyrusse-Grande", "grande"]) {
+    assert.ok(!ressembleAUneAdresse(ville), `« ${ville} » n'est pas une adresse`);
+  }
+  // En revanche « grande rue » en est bien une, grace a « rue ».
+  assert.ok(ressembleAUneAdresse("grande rue de la republique"));
+});
+
 test("les noms de communes ne deviennent pas des adresses", () => {
   // Garde-fou : « ruelle » et « centre » entrent dans le vocabulaire des voies.
   // Aucune commune ne doit basculer du cote « adresse » a cause de ca, sinon la

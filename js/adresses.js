@@ -8,8 +8,9 @@
 //
 //   2. SANS COMMUNE CHOISIE -- il faut d'abord savoir ou chercher. C'est le
 //      role de data/voies.json, un annuaire « libelle de voie -> communes »
-//      telecharge uniquement le jour ou l'on tape une adresse. Il pese 0,8 Mo
-//      compresse ; y mettre les ventes elles-memes en aurait fait 4,4.
+//      telecharge uniquement le jour ou l'on tape une adresse. Il pese 1,5 Mo
+//      compresse sur les 27 departements (0,8 Mo du temps des 14) ; y mettre
+//      les ventes elles-memes en aurait fait plusieurs fois plus.
 //
 // Les adresses DVF sont abregees : "CHE DE LA MARJOLAINE", "RTE DE COURBESSAC",
 // "ACH ANCIEN CHEMIN DE SALERNES". Taper "chemin de la marjolaine" doit les
@@ -29,19 +30,25 @@ import { normaliser } from "./recherche.js";
  * L'expansion s'applique aux DEUX cotes -- l'adresse indexee comme la saisie --
  * si bien que "chemin", "che" et "chem" se rejoignent tous sur "chemin".
  *
- * Une abreviation n'entre ici que si elle apporte quelque chose. Beaucoup
- * s'expliquent toutes seules : releve sur les 365 316 adresses des 14
- * departements d'alors, GR est TOUJOURS suivi de "GRAND RUE" ou "GRANDE RUE" (1 293
- * cas), et VTE de "VIEILLE ROUTE" ou "VIEILLE RTE" (104 cas). Ces voies se
- * trouvent donc deja sans rien ajouter, et les inscrire ici ne ferait que
- * dupliquer le texte indexe -- "GR GRAND RUE" deviendrait "grandruegrandrue",
- * ce qui degrade le classement sans rien gagner. Elles sont volontairement
- * absentes. RLE, CTRE et ART, eux, ne s'expliquent jamais ("RLE DE LA ...",
- * "CTRE LES HAUTS ...", "ART DE MORMOIRON") : sans eux, taper "ruelle",
- * "centre" ou "ancienne route" ne trouvait rien.
+ * Une abreviation n'entre ici que si elle apporte quelque chose. RLE, CTRE et
+ * ART ne s'expliquent jamais ("RLE DE LA ...", "CTRE LES HAUTS ...", "ART DE
+ * MORMOIRON") : sans eux, taper "ruelle", "centre" ou "ancienne route" ne
+ * trouvait rien.
+ *
+ * VTE reste volontairement absente : sur les donnees, elle est toujours suivie
+ * de son sens ("VTE VIEILLE ROUTE", "VTE VIEILLE RTE"), donc ces voies se
+ * trouvent deja, et l'inscrire ne ferait que dupliquer le texte indexe.
+ *
+ * GR avait ete ecartee pour la meme raison -- releve sur les 365 316 adresses
+ * des 14 premiers departements, elle etait TOUJOURS suivie de "GRAND RUE" ou
+ * "GRANDE RUE". L'arrivee de Rhone-Alpes a dementi ce constat : on y lit "GR
+ * RUE DE LA ..." 579 fois, sans developpement. La conclusion etait juste pour
+ * les donnees d'alors et fausse pour celles d'aujourd'hui ; c'est le rappel
+ * qu'un releve vaut pour le perimetre ou il a ete fait.
  */
 const ABREGES_VOIE = {
   rue: "rue",
+  gr: "grande",
   rle: "ruelle", ruelle: "ruelle",
   ctre: "centre", centre: "centre",
   che: "chemin", chem: "chemin", chemin: "chemin", cami: "chemin",
@@ -79,7 +86,15 @@ const ABREGES_VOIE = {
 // Les mots qui font dire « ceci est une adresse, pas un nom de ville ».
 // C'est ce qui declenche le telechargement de l'annuaire : on ne le charge
 // jamais pour rien.
-const MOTS_DE_VOIE = new Set(Object.values(ABREGES_VOIE));
+//
+// Ce vocabulaire n'est PAS la table ci-dessus, meme s'il en derive. Un mot peut
+// etre un developpement legitime sans rien signaler : « grande » developpe GR,
+// mais deux communes le portent -- La Grande-Motte et Peyrusse-Grande -- et les
+// prendre pour des adresses telechargerait l'annuaire (1,5 Mo) sur un simple nom
+// de ville. « grande rue » reste bien une adresse, grace a « rue ».
+const TROP_GENERIQUES = new Set(["grande"]);
+const MOTS_DE_VOIE = new Set(
+  Object.values(ABREGES_VOIE).filter((mot) => !TROP_GENERIQUES.has(mot)));
 
 export const LIMITE_ADRESSES = 200;
 
