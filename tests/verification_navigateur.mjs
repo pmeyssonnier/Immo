@@ -715,6 +715,33 @@ await page.waitForTimeout(2500);
 verifier(!(await bandeau.isVisible()),
   "le bandeau disparaît une fois les ventes de nouveau téléchargées");
 
+// --- 6 nonies. le formulaire refuse les valeurs hors bornes ---------------
+// Signalé par un audit : lancer() ne validait QUE la surface, et la case
+// « ajuster le terrain » l'appelle directement, sans passer par le submit -- donc
+// sans la validation native du navigateur. Un terrain à -500 suivi d'un clic sur
+// la case relançait le calcul avec cette valeur.
+await page.reload({ waitUntil: "networkidle" });
+await page.waitForSelector("#application:not([hidden])");
+await page.waitForTimeout(800);
+await estimer("30189", "nimes", 120);
+await page.waitForTimeout(2500);
+verifier((await page.locator(".valeur-principale").count()) === 1,
+  "estimation de référence obtenue avant de tester les bornes");
+
+for (const [champ, valeur, quoi] of [["#surface-terrain", "-500", "terrain négatif"],
+                                     ["#surface-terrain", "200000", "terrain hors borne"],
+                                     ["#nombre-pieces", "0", "zéro pièce"],
+                                     ["#nombre-pieces", "21", "vingt-et-une pièces"]]) {
+  await page.fill(champ, valeur);
+  // On passe par la CASE, pas par le bouton : c'est le chemin qui contournait.
+  await page.click("#ajuster-terrain");
+  await page.waitForTimeout(900);
+  const montants = await page.locator(".valeur-principale").count();
+  verifier(montants === 0, `${quoi} : aucun montant calculé (${montants} trouvé(s))`);
+  await page.fill(champ, "");
+  await page.waitForTimeout(300);
+}
+
 // --- 7. aucune erreur JavaScript -----------------------------------------
 const vraiesErreurs = erreurs.filter((e) => !/tile|ERR_|net::|Failed to load resource/i.test(e));
 verifier(vraiesErreurs.length === 0,
