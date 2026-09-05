@@ -44,6 +44,7 @@ from collections import defaultdict
 # dossier chez france-geojson, d'ou proviennent les contours des communes.
 # Pour en ajouter un : une ligne ici, et rien d'autre a toucher.
 DEPARTEMENTS = {
+    "01": {"nom": "Ain", "slug": "01-ain"},
     "04": {"nom": "Alpes-de-Haute-Provence", "slug": "04-alpes-de-haute-provence"},
     "05": {"nom": "Hautes-Alpes", "slug": "05-hautes-alpes"},
     "06": {"nom": "Alpes-Maritimes", "slug": "06-alpes-maritimes"},
@@ -57,10 +58,15 @@ DEPARTEMENTS = {
     "31": {"nom": "Haute-Garonne", "slug": "31-haute-garonne"},
     "32": {"nom": "Gers", "slug": "32-gers"},
     "34": {"nom": "Hérault", "slug": "34-herault"},
+    "38": {"nom": "Isère", "slug": "38-isere"},
+    "42": {"nom": "Loire", "slug": "42-loire"},
     "46": {"nom": "Lot", "slug": "46-lot"},
     "48": {"nom": "Lozère", "slug": "48-lozere"},
     "65": {"nom": "Hautes-Pyrénées", "slug": "65-hautes-pyrenees"},
     "66": {"nom": "Pyrénées-Orientales", "slug": "66-pyrenees-orientales"},
+    "69": {"nom": "Rhône", "slug": "69-rhone"},
+    "73": {"nom": "Savoie", "slug": "73-savoie"},
+    "74": {"nom": "Haute-Savoie", "slug": "74-haute-savoie"},
     "81": {"nom": "Tarn", "slug": "81-tarn"},
     "82": {"nom": "Tarn-et-Garonne", "slug": "82-tarn-et-garonne"},
     "83": {"nom": "Var", "slug": "83-var"},
@@ -217,7 +223,7 @@ def quantile(valeurs_triees, q):
 # --------------------------------------------------------------------------
 # Telechargement
 # --------------------------------------------------------------------------
-# Un passage du robot enchaine 105 telechargements (21 departements x 5 annees),
+# Un passage du robot enchaine 135 telechargements (27 departements x 5 annees),
 # tous les mois. Le reseau finira par lacher sur l'un d'eux. Trois regles :
 #   1. une panne se reessaie, une reponse claire du serveur ne se reessaie pas ;
 #   2. un fichier incomplet n'est jamais confondu avec un fichier complet ;

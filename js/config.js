@@ -35,6 +35,7 @@ export const CONFIG = {
   //
   // Doit rester en accord avec DEPARTEMENTS dans scripts/preparer_donnees.py.
   DEPARTEMENTS: [
+    { code: "01", nom: "Ain" },
     { code: "04", nom: "Alpes-de-Haute-Provence" },
     { code: "05", nom: "Hautes-Alpes" },
     { code: "06", nom: "Alpes-Maritimes" },
@@ -48,10 +49,15 @@ export const CONFIG = {
     { code: "31", nom: "Haute-Garonne" },
     { code: "32", nom: "Gers" },
     { code: "34", nom: "Hérault" },
+    { code: "38", nom: "Isère" },
+    { code: "42", nom: "Loire" },
     { code: "46", nom: "Lot" },
     { code: "48", nom: "Lozère" },
     { code: "65", nom: "Hautes-Pyrénées" },
     { code: "66", nom: "Pyrénées-Orientales" },
+    { code: "69", nom: "Rhône" },
+    { code: "73", nom: "Savoie" },
+    { code: "74", nom: "Haute-Savoie" },
     { code: "81", nom: "Tarn" },
     { code: "82", nom: "Tarn-et-Garonne" },
     { code: "83", nom: "Var" },

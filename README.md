@@ -1,12 +1,12 @@
 # Immo — Occitanie, PACA & Rhône-Alpes
 
 Un site web qui montre **les vraies ventes de maisons** enregistrées dans
-**21 départements du sud de la France**, sur une carte, et qui **estime un bien**
+**27 départements du sud de la France**, sur une carte, et qui **estime un bien**
 à partir de ces ventes.
 
-Alpes-de-Haute-Provence (04), Hautes-Alpes (05), Alpes-Maritimes (06), Ardèche (07), Ariège (09), Aude (11), Aveyron (12), Bouches-du-Rhône (13), Drôme (26), Gard (30), Haute-Garonne (31), Gers (32), Hérault (34), Lot (46), Lozère (48), Hautes-Pyrénées (65), Pyrénées-Orientales (66), Tarn (81), Tarn-et-Garonne (82), Var (83), Vaucluse (84)
+Ain (01), Alpes-de-Haute-Provence (04), Hautes-Alpes (05), Alpes-Maritimes (06), Ardèche (07), Ariège (09), Aude (11), Aveyron (12), Bouches-du-Rhône (13), Drôme (26), Gard (30), Haute-Garonne (31), Gers (32), Hérault (34), Isère (38), Loire (42), Lot (46), Lozère (48), Hautes-Pyrénées (65), Pyrénées-Orientales (66), Rhône (69), Savoie (73), Haute-Savoie (74), Tarn (81), Tarn-et-Garonne (82), Var (83), Vaucluse (84)
 
-- À gauche : les 21 départements, chacun avec son **prix médian au m²** et son
+- À gauche : les 27 départements, chacun avec son **prix médian au m²** et son
   nombre de ventes — la vue d'ensemble du marché, lisible sans rien déplier.
   Cliquez sur un département pour voir ses communes ; la recherche, elle,
   fouille les 3 945 communes d'un coup.
