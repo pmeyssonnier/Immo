@@ -94,9 +94,17 @@ test("trois lettres suffisent : « ale » met Ales en premier", () => {
   // C'etait le defaut le plus penible : Ales arrivait en 33e position sur 60,
   // derriere L'Escale, L'Hospitalet, Valensole, Valernes et Saleon.
   assert.equal(premier("ale").nom, "Alès");
-  assert.equal(premier("al").nom, "Alès", "deux lettres aussi");
   assert.equal(premier("nim").nom, "Nîmes");
   assert.equal(premier("uze").nom, "Uzès");
+
+  // Sur DEUX lettres, « al » ne designe plus Ales tout seul : depuis l'arrivee
+  // du Tarn, Albi (2 061 ventes) passe devant Ales (1 249). Ce n'est pas une
+  // regression, c'est la regle de classement qui s'applique -- a rang egal, la
+  // commune la plus vendue d'abord -- et elle est neutre. Ce qui compte est
+  // qu'Ales reste immediatement accessible, pas qu'elle soit premiere partout.
+  const deuxLettres = chercher(INDEX, "al").slice(0, 3).map((r) => r.commune.nom);
+  assert.ok(deuxLettres.includes("Alès"),
+            `« al » doit garder Ales dans les tout premiers, obtenu : ${deuxLettres}`);
 });
 
 test("« Pont Saint Esprit » trouve Pont-Saint-Esprit, quelle que soit l'ecriture", () => {

@@ -12,7 +12,7 @@ let compteur = null;
 // Empreinte du dernier rendu : elle evite de reconstruire les milliers de
 // lignes a chaque deplacement de la carte (ce qui ferait sauter le defilement).
 let derniereEmpreinte = null;
-// Departements que l'utilisateur a ouverts a la main. Avec vingt et un groupes
+// Departements que l'utilisateur a ouverts a la main. Avec vingt-sept groupes
 // et plusieurs milliers de communes, tout deplier au demarrage donnerait une
 // liste interminable : on part donc replie, et on se souvient de ce qui a ete
 // ouvert.

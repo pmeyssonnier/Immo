@@ -32,7 +32,7 @@ date) sont celles publiées par l'administration fiscale.
 
 Les départements d'Alsace-Moselle (67, 68, 57) et Mayotte ne figurent pas dans DVF.
 Cela est sans effet ici : aucun de ces territoires ne figure parmi les
-21 départements couverts (Alpes-de-Haute-Provence (04), Hautes-Alpes (05), Alpes-Maritimes (06), Ardèche (07), Ariège (09), Aude (11), Aveyron (12), Bouches-du-Rhône (13), Drôme (26), Gard (30), Haute-Garonne (31), Gers (32), Hérault (34), Lot (46), Lozère (48), Hautes-Pyrénées (65), Pyrénées-Orientales (66), Tarn (81), Tarn-et-Garonne (82), Var (83), Vaucluse (84)).
+27 départements couverts (Ain (01), Alpes-de-Haute-Provence (04), Hautes-Alpes (05), Alpes-Maritimes (06), Ardèche (07), Ariège (09), Aude (11), Aveyron (12), Bouches-du-Rhône (13), Drôme (26), Gard (30), Haute-Garonne (31), Gers (32), Hérault (34), Isère (38), Loire (42), Lot (46), Lozère (48), Hautes-Pyrénées (65), Pyrénées-Orientales (66), Rhône (69), Savoie (73), Haute-Savoie (74), Tarn (81), Tarn-et-Garonne (82), Var (83), Vaucluse (84)).
 
 ## Portée des estimations
 
