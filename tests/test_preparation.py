@@ -349,6 +349,82 @@ class TestChaineComplete(unittest.TestCase):
         self.assertTrue(prep.verifier(sortie, tolerant=True))
 
 
+class TestArrondissements(unittest.TestCase):
+    """La source des arrondissements est une API gratuite, donc faillible.
+
+    Elle a rendu UNE FOIS une reponse sans le moindre arrondissement, la ou le
+    meme appel deux minutes plus tard en rendait vingt-cinq -- et le robot, qui
+    dure sept minutes, a ete perdu pour ca. Ces tests figent la resistance
+    ajoutee ensuite.
+    """
+
+    def setUp(self):
+        self.appels = []
+        self.telecharger = prep.telecharger
+        self.attendre = prep.attendre_avant_reessai
+        prep.attendre_avant_reessai = lambda t: None      # pas d'attente en test
+
+    def tearDown(self):
+        prep.telecharger = self.telecharger
+        prep.attendre_avant_reessai = self.attendre
+
+    def _repondre(self, reponses):
+        """Fait rendre a telecharger() les charges donnees, dans l'ordre."""
+        def faux(url, destination):
+            charge = reponses[min(len(self.appels), len(reponses) - 1)]
+            self.appels.append(url)
+            if charge is None:
+                return False
+            with open(destination, "w", encoding="utf-8") as flux:
+                json.dump(charge, flux)
+            return True
+        prep.telecharger = faux
+
+    @staticmethod
+    def _complet():
+        return {"type": "FeatureCollection", "features": [
+            {"type": "Feature", "properties": {"com_arm_code": code},
+             "geometry": {"type": "Polygon", "coordinates": [[[4, 43], [4, 44],
+                                                              [5, 44], [4, 43]]]}}
+            for code in prep.CODES_ARRONDISSEMENTS]}
+
+    def _geojsons(self):
+        def commune(code):
+            return {"type": "Feature", "properties": {"code": code},
+                    "geometry": {"type": "Polygon", "coordinates": []}}
+        return {"13": {"features": [commune("13055"), commune("13001")]},
+                "69": {"features": [commune("69123"), commune("69003")]}}
+
+    def test_une_reponse_vide_est_rejouee(self):
+        vide = {"type": "FeatureCollection", "features": []}
+        self._repondre([vide, self._complet()])
+        geojsons = self._geojsons()
+        prep.substituer_arrondissements(geojsons, tempfile.mkdtemp())
+        self.assertEqual(len(self.appels), 2, "la reponse vide doit etre rejouee")
+        codes = {e["properties"]["code"] for e in geojsons["13"]["features"]}
+        self.assertNotIn("13055", codes, "la commune mere doit disparaitre")
+        self.assertIn("13208", codes, "les arrondissements doivent la remplacer")
+        self.assertIn("13001", codes, "les autres communes ne bougent pas")
+
+    def test_trois_echecs_disent_ce_qui_est_arrive(self):
+        vide = {"type": "FeatureCollection", "features": []}
+        self._repondre([vide])
+        with self.assertRaises(SystemExit) as boite:
+            prep.substituer_arrondissements(self._geojsons(), tempfile.mkdtemp())
+        message = str(boite.exception)
+        self.assertIn("0 entite(s) recue(s)", message,
+                      "le message doit dire ce qui est ARRIVE, pas ce qu'on esperait")
+        self.assertEqual(len(self.appels), prep.TENTATIVES_MAX)
+
+    def test_une_source_incomplete_est_refusee(self):
+        partiel = self._complet()
+        partiel["features"] = partiel["features"][:10]
+        self._repondre([partiel])
+        with self.assertRaises(SystemExit) as boite:
+            prep.substituer_arrondissements(self._geojsons(), tempfile.mkdtemp())
+        self.assertIn("10 arrondissement(s) reconnu(s)", str(boite.exception))
+
+
 class TestControlesExhaustifs(unittest.TestCase):
     """Une corruption par regle, et le message doit nommer le coupable.
 

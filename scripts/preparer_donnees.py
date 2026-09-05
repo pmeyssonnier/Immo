@@ -791,24 +791,54 @@ def substituer_arrondissements(geojsons, dossier_temporaire):
     Echoue bruyamment plutot que de publier une carte a moitie juste : si la
     source ne rend pas les 25 polygones attendus, on ne publie rien.
     """
+    # Cette source est une API publique gratuite, et elle a deja rendu UNE FOIS
+    # une reponse sans le moindre arrondissement, la ou le meme appel joue deux
+    # minutes plus tard en rendait vingt-cinq. Le telechargement, lui, avait
+    # reussi : c'est donc le CONTENU qui manquait, pas le reseau. telecharger()
+    # ne peut pas voir ca -- il ne sait rien du sens de ce qu'il rapporte.
+    #
+    # On reessaie donc sur le contenu, pas seulement sur la panne. Un robot de
+    # sept minutes ne doit pas etre perdu parce qu'une API gratuite a hoquete une
+    # fois. Et si les trois essais echouent, le message dit ce qui est ARRIVE --
+    # combien d'entites, quelles proprietes -- plutot que de repeter la liste de
+    # ce qu'on esperait, qui n'apprend rien.
     destination = os.path.join(dossier_temporaire, "arrondissements.geojson")
-    if not telecharger(URL_ARRONDISSEMENTS, destination):
-        raise SystemExit("ERREUR : contours des arrondissements indisponibles.")
-    with open(destination, encoding="utf-8") as flux:
-        charge = json.load(flux)
-
-    par_code = {}
-    for entite in charge.get("features", []):
-        code = str((entite.get("properties") or {}).get("com_arm_code") or "")
-        if code in CODES_ARRONDISSEMENTS:
-            # On ramene au format des autres contours : seul "code" est lu ensuite.
-            entite["properties"] = {"code": code}
-            par_code[code] = entite
-
-    manquants = [c for c in CODES_ARRONDISSEMENTS if c not in par_code]
-    if manquants:
-        raise SystemExit("ERREUR : arrondissements absents de la source : %s"
-                         % ", ".join(manquants))
+    dernier_indice = "aucune tentative"
+    for tentative in range(1, TENTATIVES_MAX + 1):
+        supprimer_si_present(destination)
+        if not telecharger(URL_ARRONDISSEMENTS, destination):
+            dernier_indice = "telechargement impossible"
+        else:
+            try:
+                with open(destination, encoding="utf-8") as flux:
+                    charge = json.load(flux)
+            except ValueError as erreur:
+                dernier_indice = "reponse illisible : %s" % erreur
+                charge = {}
+            par_code = {}
+            for entite in charge.get("features", []) or []:
+                code = str((entite.get("properties") or {}).get("com_arm_code") or "")
+                if code in CODES_ARRONDISSEMENTS:
+                    # Format des autres contours : seul "code" est lu ensuite.
+                    entite["properties"] = {"code": code}
+                    par_code[code] = entite
+            if len(par_code) == len(CODES_ARRONDISSEMENTS):
+                break
+            entites = charge.get("features") or []
+            dernier_indice = ("%d entite(s) recue(s), %d arrondissement(s) reconnu(s)"
+                              % (len(entites), len(par_code)))
+            if entites:
+                dernier_indice += " ; proprietes de la 1re : %s" % (
+                    sorted(entites[0].get("properties") or {})[:6])
+        if tentative < TENTATIVES_MAX:
+            journal("  ... arrondissements incomplets (%s), nouvelle tentative %d/%d"
+                    % (dernier_indice, tentative + 1, TENTATIVES_MAX))
+            attendre_avant_reessai(tentative)
+    else:
+        raise SystemExit(
+            "ERREUR : la source des arrondissements n'a pas rendu les %d polygones "
+            "attendus apres %d tentatives. Dernier essai : %s"
+            % (len(CODES_ARRONDISSEMENTS), TENTATIVES_MAX, dernier_indice))
 
     for mere, enfants in ARRONDISSEMENTS.items():
         dep = mere[:2]
