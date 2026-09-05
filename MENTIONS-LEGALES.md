@@ -12,6 +12,12 @@ Ce site utilise la version **géolocalisée et normalisée** produite par Etalab
 Les contours des communes proviennent du projet *france-geojson*
 (<https://github.com/gregoiredavid/france-geojson>), dérivé des données de l'IGN.
 
+Les contours des **arrondissements de Marseille et de Lyon** proviennent du jeu
+*georef-france-commune-arrondissement-municipal*, diffusé par OpenDataSoft sous
+**Licence Ouverte (Etalab)**. Ils sont nécessaires parce que DVF enregistre les ventes
+de ces deux villes par arrondissement, alors que les contours communaux usuels ne
+connaissent que la commune entière.
+
 Le fond de plan est fourni par **OpenStreetMap** et ses contributeurs
 (<https://www.openstreetmap.org/copyright>).
 

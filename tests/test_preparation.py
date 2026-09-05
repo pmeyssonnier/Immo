@@ -434,6 +434,35 @@ class TestControlesExhaustifs(unittest.TestCase):
         self.assertEqual(len(problemes), 1)
         self.assertIn("orphelin", problemes[0])
 
+    def test_commune_vendeuse_sans_contour(self):
+        """Regle N : le controle qui manquait vraiment.
+
+        Marseille et Lyon ont vecu depuis le premier jour avec 7 980 ventes et
+        aucun contour -- donc grises sur la carte -- sans qu'aucune verification
+        ne bronche. On retire ici le contour de la commune la plus vendeuse et on
+        exige que ce soit signale.
+        """
+        def abimer(d):
+            communes = self._charger(d, "communes.json")
+            i = communes["champs"].index
+            grosse = max(communes["valeurs"], key=lambda l: l[i("n")])[i("code")]
+            geo = self._charger(d, "communes-geo.json")
+            geo["features"] = [e for e in geo["features"]
+                               if e["properties"]["code"] != grosse]
+            self._ecrire(geo, d, "communes-geo.json")
+        problemes = self.controler_apres(abimer)
+        # On n'affirme rien sur le NOMBRE de problemes : retirer un contour en
+        # casse mecaniquement d'autres (comptes, adjacence). Ce qui compte est
+        # que la regle N, elle, parle.
+        self.assertTrue(any("aucun contour" in p for p in problemes),
+                        "la regle N doit signaler la commune sans contour : %s" % problemes)
+        # La TOLERANCE, elle, ne se teste pas ici : ce jeu d'essai ne compte que
+        # 24 ventes, ou une seule vente pese 4 % -- un seuil exprime en proportion
+        # n'y veut rien dire. Elle est exercee sur les vraies donnees par
+        # test_site.test_donnees_publiees_integralement_coherentes, ou deux
+        # communes fusionnees (Conques-en-Rouergue et Liergues, 66 ventes) restent
+        # orphelines et ne doivent PAS faire echouer le robot.
+
     def test_coordonnee_hors_de_France(self):
         def abimer(d):
             table = self._charger(d, "ventes", "30", "30189.json")

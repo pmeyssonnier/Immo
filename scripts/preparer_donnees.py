@@ -33,6 +33,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import defaultdict
 
@@ -74,6 +75,33 @@ DEPARTEMENTS = {
 }
 
 URL_DVF = "https://files.data.gouv.fr/geo-dvf/latest/csv/{annee}/departements/{dep}.csv.gz"
+# Marseille et Lyon : DVF enregistre leurs ventes PAR ARRONDISSEMENT (13201..13216,
+# 69381..69389), alors que france-geojson ne connait que la commune entiere. Sans
+# ces contours-la, nos deux plus grandes villes restaient GRISES sur la carte --
+# « donnees insuffisantes » -- tout en portant 7 980 ventes. Le defaut a dure
+# depuis le premier jour parce qu'aucun controle n'exigeait qu'une commune
+# vendeuse ait un contour ; c'est desormais la regle N.
+#
+# Fusionner les arrondissements dans la commune mere aurait ete plus simple, et
+# c'est ecarte sur mesure : Marseille va de 2 897 EUR/m2 au 3e a 8 443 au 7e, un
+# rapport de 2,91. Une couleur unique mentirait autant que le gris.
+#
+# La source a ete choisie par une sonde executee sur les serveurs de GitHub, seuls
+# a joindre ces sites. Sans filtre, ce jeu pese 292 Mo (toute la France) ; le
+# filtre « com_arm_code » ramene a 0,24 Mo en 1,1 s pour exactement les 25
+# polygones utiles, sous Licence Ouverte. Une fois simplifies par le robot ils
+# pesent 21 Ko compresses, contre 840 Ko pour l'ensemble des contours.
+ARRONDISSEMENTS = {
+    "13055": ["132%02d" % n for n in range(1, 17)],   # Marseille
+    "69123": ["693%02d" % n for n in range(81, 90)],  # Lyon
+}
+CODES_ARRONDISSEMENTS = [c for liste in ARRONDISSEMENTS.values() for c in liste]
+URL_ARRONDISSEMENTS = (
+    "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/"
+    "georef-france-commune-arrondissement-municipal/exports/geojson?limit=-1&where="
+    + urllib.parse.quote("com_arm_code in (%s)"
+                         % ",".join('"%s"' % c for c in CODES_ARRONDISSEMENTS)))
+
 URL_CONTOURS = {
     dep: "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/"
          "departements/{slug}/communes-{slug}.geojson".format(slug=infos["slug"])
@@ -110,6 +138,12 @@ PIECES_MAX = 20
 # --- Etage 2 : ecart median absolu (MAD) en espace logarithmique ------------
 SEUIL_MAD = 3.0           # on garde si |ln(u) - mediane| <= 3 * sigma robuste
 MIN_VENTES_MAD_COMMUNE = 8  # en dessous, on utilise le seuil departemental
+
+# --- Carte : part tolerable de ventes sans contour (regle N) ---------------
+# 0,5 % du total. Aujourd'hui les communes fusionnees en representent 0,011 % ;
+# les arrondissements de Marseille et Lyon en representaient 1,35 %, donc le
+# defaut aurait ete attrape des le premier jour si cette regle avait existe.
+SEUIL_VENTES_SANS_CONTOUR = 0.5
 
 # --- Carte : une commune avec trop peu de ventes n'est pas coloriee ---------
 MIN_VENTES_AFFICHAGE = 5
@@ -747,6 +781,46 @@ def centroide(anneau):
     return cx / (3 * aire2), cy / (3 * aire2)
 
 
+def substituer_arrondissements(geojsons, dossier_temporaire):
+    """Remplace Marseille et Lyon par leurs arrondissements dans les contours.
+
+    Les communes meres sont RETIREES : elles n'ont aucune vente -- DVF ne leur en
+    attribue pas -- et leur polygone recouvrirait exactement les arrondissements,
+    ce qui rendrait les clics ambigus sur la carte.
+
+    Echoue bruyamment plutot que de publier une carte a moitie juste : si la
+    source ne rend pas les 25 polygones attendus, on ne publie rien.
+    """
+    destination = os.path.join(dossier_temporaire, "arrondissements.geojson")
+    if not telecharger(URL_ARRONDISSEMENTS, destination):
+        raise SystemExit("ERREUR : contours des arrondissements indisponibles.")
+    with open(destination, encoding="utf-8") as flux:
+        charge = json.load(flux)
+
+    par_code = {}
+    for entite in charge.get("features", []):
+        code = str((entite.get("properties") or {}).get("com_arm_code") or "")
+        if code in CODES_ARRONDISSEMENTS:
+            # On ramene au format des autres contours : seul "code" est lu ensuite.
+            entite["properties"] = {"code": code}
+            par_code[code] = entite
+
+    manquants = [c for c in CODES_ARRONDISSEMENTS if c not in par_code]
+    if manquants:
+        raise SystemExit("ERREUR : arrondissements absents de la source : %s"
+                         % ", ".join(manquants))
+
+    for mere, enfants in ARRONDISSEMENTS.items():
+        dep = mere[:2]
+        if dep not in geojsons:
+            continue
+        entites = [e for e in geojsons[dep]["features"]
+                   if e["properties"]["code"] != mere]
+        entites.extend(par_code[c] for c in enfants)
+        geojsons[dep]["features"] = entites
+        journal("  %s remplacee par ses %d arrondissements" % (mere, len(enfants)))
+
+
 def construire_contours(geojsons_par_dep):
     """Simplifie les contours et deduit l'adjacence des communes.
 
@@ -1375,6 +1449,39 @@ def controler(dossier, tolerant=False):
                                  "l'annuaire, dont %s"
                                  % (len(manquantes), ", ".join(manquantes[:5])))
 
+    # --- N. toute commune vendeuse doit avoir un contour ------------------
+    # Une regle voisine existe deja (PART_MAX_SANS_CONTOUR) mais compte les
+    # COMMUNES : 27 sur 8 263 font 0,33 %, sous son seuil de 1 %. C'est pourquoi
+    # Marseille est passee entre les mailles. Celle-ci pese les VENTES, et une
+    # Marseille absente vaut une commune mais 7 132 ventes. Les deux se
+    # completent : l'une surveille la couverture, l'autre ce qu'on perd a l'ecran.
+    # Le controle qui manquait. Marseille et Lyon ont vecu depuis le premier jour
+    # avec des ventes (7 980) et aucun contour, donc grises sur la carte, sans
+    # qu'aucune verification ne bronche. DVF enregistre leurs ventes par
+    # arrondissement quand la source des contours ne connait que la commune.
+    # Le seuil n'est pas de la complaisance. Deux causes distinctes produisent des
+    # orphelines : les arrondissements (7 980 ventes, corrige ici) et les communes
+    # FUSIONNEES, ou DVF garde l'ancien code quand les contours portent le nouveau
+    # -- Conques-en-Rouergue (12218, 22 ventes) et Liergues (69114, 44 ventes).
+    # La France fusionne des communes chaque annee : une regle qui echouerait au
+    # moindre orphelin bloquerait la mise a jour des donnees pour 40 ventes. Elle
+    # doit attraper un trou massif, pas une queue de distribution inevitable.
+    codes_avec_contour = {e["properties"]["code"] for e in contours["features"]}
+    orphelines = sorted(((ligne[index["code"]], ligne[index["n"]])
+                         for ligne in communes["valeurs"]
+                         if ligne[index["n"]] > 0
+                         and ligne[index["code"]] not in codes_avec_contour),
+                        key=lambda c: -c[1])
+    ventes_orphelines = sum(n for _, n in orphelines)
+    total_ventes = sum(ligne[index["n"]] for ligne in communes["valeurs"])
+    part = 100.0 * ventes_orphelines / max(1, total_ventes)
+    if part > SEUIL_VENTES_SANS_CONTOUR:
+        problemes.append(
+            "N : %d commune(s) totalisant %d ventes (%.2f %% du total) n'ont aucun "
+            "contour et seront invisibles sur la carte ; les plus grosses : %s"
+            % (len(orphelines), ventes_orphelines, part,
+               ", ".join("%s (%d)" % c for c in orphelines[:5])))
+
     # --- J. volumes et plausibilite (controles historiques) ---------------
     seuil_ventes = 10 if tolerant else 60_000
     seuil_communes = 1 if tolerant else 1_200
@@ -1516,6 +1623,8 @@ def main():
                         geojsons[dep] = json.load(flux)
                 else:
                     raise SystemExit("ERREUR : contours du departement %s indisponibles." % dep)
+        if not options.source_locale:
+            substituer_arrondissements(geojsons, dossier_temporaire)
         contours, adjacence, centroides = construire_contours(geojsons)
         journal("  %d communes, %d ont au moins un voisin"
                 % (len(contours["features"]), len(adjacence)))
