@@ -1,0 +1,94 @@
+# Sonde de faisabilite : DPE de l'ADEME + risques Georisques.
+#
+# Ce workflow MESURE, il ne construit rien. Il n'ecrit pas dans data/, ne commit
+# rien, ne publie rien. Il imprime des chiffres dans le resume du run, et c'est
+# tout. Il existe parce que l'environnement de developpement n'a pas acces a
+# data.ademe.fr ni a georisques.gouv.fr, alors que les serveurs de GitHub, si.
+#
+# Deux garde-fous, volontairement redondants :
+#   1. « permissions: contents: read » -- ce job ne PEUT PAS ecrire dans le
+#      depot, meme si quelqu'un ajoutait un git push par erreur. Ce n'est pas
+#      une promesse, c'est le jeton lui-meme qui n'en a pas le droit.
+#   2. Aucun secret n'est expose : la sonde ne porte ni clef ni moyen de
+#      paiement, et son premier geste est de verifier que les sources sont
+#      accessibles SANS authentification. Si l'une exige une clef, un compte ou
+#      un paiement, elle s'arrete et le dit.
+#
+# Comme les autres workflows du depot, il n'utilise AUCUNE action externe.
+
+name: Sonde DPE et risques
+
+on:
+  workflow_dispatch:
+    inputs:
+      dep:
+        description: "Departement a sonder (ex. 30 pour le Gard)"
+        default: "30"
+        required: false
+      annees:
+        description: "Nombre d'annees de ventes a comparer"
+        default: "5"
+        required: false
+      verrou_seulement:
+        description: "N'executer que le controle de gratuite (rapide)"
+        type: boolean
+        default: false
+  push:
+    paths:
+      # Modifier la sonde la relance : c'est ainsi qu'on l'execute depuis une
+      # branche de travail, ou le bouton « Run workflow » n'apparait pas.
+      - "scripts/sonder_dpe_risques.py"
+      - ".github/workflows/sonde.yml"
+
+permissions:
+  contents: read           # LECTURE SEULE : ce job ne peut rien enregistrer
+
+concurrency:
+  group: sonde-dpe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mesurer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Récupérer le code
+        run: |
+          git clone --depth 1 --branch "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" .
+          echo "python : $(python3 --version)"
+
+      - name: Mesurer
+        id: mesure
+        run: |
+          set -o pipefail
+          ARGS="--dep ${{ inputs.dep || '30' }} --annees ${{ inputs.annees || '5' }}"
+          if [ "${{ inputs.verrou_seulement }}" = "true" ]; then
+            ARGS="$ARGS --verrou-seulement"
+          fi
+          python3 scripts/sonder_dpe_risques.py $ARGS 2>&1 | tee rapport-sonde.txt
+
+      - name: Publier le rapport
+        if: always()
+        run: |
+          {
+            echo '## Sonde DPE + Géorisques'
+            echo
+            echo 'Aucune donnée du site n’a été modifiée : ce job est en lecture seule.'
+            echo
+            echo '```'
+            cat rapport-sonde.txt 2>/dev/null || echo '(aucun rapport produit)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Vérifier qu'aucune donnée n'a été touchée
+        if: always()
+        run: |
+          # Ceinture et bretelles : si la sonde avait ecrit dans data/ malgre
+          # tout, on veut le savoir bruyamment plutot que de l'ignorer.
+          if ! git diff --quiet -- data || [ -n "$(git status --porcelain -- data)" ]; then
+            echo "::error::la sonde a modifié data/ — c'est interdit"
+            git status --porcelain -- data
+            exit 1
+          fi
+          echo "data/ est intact, comme prévu."
