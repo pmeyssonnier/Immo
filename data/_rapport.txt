@@ -177,9 +177,11 @@ Mutations contenant une maison : 672546
 Aberrations retirees (MAD) : 19054 sur 610890 (3.1 %)
 Ventes retenues : 591836
 Contours des communes...
-  contours : 532473 sommets -> 193176 (64 % retires)
-  8236 communes, 8236 ont au moins un voisin
-  160 commune(s) sans vente nommee(s) d'apres les contours
+  13055 remplacee par ses 16 arrondissements
+  69123 remplacee par ses 9 arrondissements
+  contours : 537266 sommets -> 193609 (64 % retires)
+  8259 communes, 8259 ont au moins un voisin
+  158 commune(s) sans vente nommee(s) d'apres les contours
 Ecriture dans data ...
   prix du terrain (valeur departementale) : 01 = 17.7 EUR/m2 sur 23816 ventes avec terrain, 04 = 24.8 EUR/m2 sur 7614 ventes avec terrain, 05 = 22.2 EUR/m2 sur 4430 ventes avec terrain, 06 = non mesurable (aucun ajustement propose) sur 17031 ventes avec terrain, 07 = 17.2 EUR/m2 sur 14936 ventes avec terrain, 09 = 17.6 EUR/m2 sur 10245 ventes avec terrain, 11 = 44.3 EUR/m2 sur 23776 ventes avec terrain, 12 = 13.7 EUR/m2 sur 12601 ventes avec terrain, 13 = 18.2 EUR/m2 sur 37336 ventes avec terrain, 26 = 9.9 EUR/m2 sur 18986 ventes avec terrain, 30 = 22.4 EUR/m2 sur 31041 ventes avec terrain, 31 = non mesurable (aucun ajustement propose) sur 39909 ventes avec terrain, 32 = 10.2 EUR/m2 sur 10862 ventes avec terrain, 34 = 47.9 EUR/m2 sur 42326 ventes avec terrain, 38 = 16.8 EUR/m2 sur 33030 ventes avec terrain, 42 = 19.8 EUR/m2 sur 22541 ventes avec terrain, 46 = 11.1 EUR/m2 sur 10843 ventes avec terrain, 48 = 13.5 EUR/m2 sur 3310 ventes avec terrain, 65 = 5.2 EUR/m2 sur 9682 ventes avec terrain, 66 = 64.0 EUR/m2 sur 25359 ventes avec terrain, 69 = 17.9 EUR/m2 sur 27130 ventes avec terrain, 73 = 20.4 EUR/m2 sur 11334 ventes avec terrain, 74 = 26.1 EUR/m2 sur 18961 ventes avec terrain, 81 = 6.5 EUR/m2 sur 19539 ventes avec terrain, 82 = non mesurable (aucun ajustement propose) sur 12937 ventes avec terrain, 83 = non mesurable (aucun ajustement propose) sur 40945 ventes avec terrain, 84 = 25.3 EUR/m2 sur 21932 ventes avec terrain
   Ain                  24908 ventes, mediane  2340 EUR/m2
