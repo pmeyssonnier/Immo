@@ -20,7 +20,8 @@ import { normaliser } from "./recherche.js";
 /**
  * Abreviations de voie, telles qu'elles apparaissent vraiment dans DVF.
  *
- * Les huit premieres couvrent 87 % des adresses des quatorze departements.
+ * Les huit premieres couvraient 87 % des adresses, mesure faite sur les
+ * 14 departements d'alors -- avant l'ajout des 7 d'Occitanie.
  * Les suivantes ont ete verifiees une par une sur des exemples : ACH precede
  * toujours "ANCIEN CHEMIN", RPT "ROND-POINT", VC "VOIE COMMUNALE", CAE une
  * carraire (chemin de transhumance provencal), CAMI le mot occitan pour chemin.
@@ -29,8 +30,8 @@ import { normaliser } from "./recherche.js";
  * si bien que "chemin", "che" et "chem" se rejoignent tous sur "chemin".
  *
  * Une abreviation n'entre ici que si elle apporte quelque chose. Beaucoup
- * s'expliquent toutes seules : releve sur les 365 316 adresses des quatorze
- * departements, GR est TOUJOURS suivi de "GRAND RUE" ou "GRANDE RUE" (1 293
+ * s'expliquent toutes seules : releve sur les 365 316 adresses des 14
+ * departements d'alors, GR est TOUJOURS suivi de "GRAND RUE" ou "GRANDE RUE" (1 293
  * cas), et VTE de "VIEILLE ROUTE" ou "VIEILLE RTE" (104 cas). Ces voies se
  * trouvent donc deja sans rien ajouter, et les inscrire ici ne ferait que
  * dupliquer le texte indexe -- "GR GRAND RUE" deviendrait "grandruegrandrue",

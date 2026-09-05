@@ -50,12 +50,19 @@ DEPARTEMENTS = {
     "07": {"nom": "Ardèche", "slug": "07-ardeche"},
     "09": {"nom": "Ariège", "slug": "09-ariege"},
     "11": {"nom": "Aude", "slug": "11-aude"},
+    "12": {"nom": "Aveyron", "slug": "12-aveyron"},
     "13": {"nom": "Bouches-du-Rhône", "slug": "13-bouches-du-rhone"},
     "26": {"nom": "Drôme", "slug": "26-drome"},
     "30": {"nom": "Gard", "slug": "30-gard"},
     "31": {"nom": "Haute-Garonne", "slug": "31-haute-garonne"},
+    "32": {"nom": "Gers", "slug": "32-gers"},
     "34": {"nom": "Hérault", "slug": "34-herault"},
+    "46": {"nom": "Lot", "slug": "46-lot"},
+    "48": {"nom": "Lozère", "slug": "48-lozere"},
+    "65": {"nom": "Hautes-Pyrénées", "slug": "65-hautes-pyrenees"},
     "66": {"nom": "Pyrénées-Orientales", "slug": "66-pyrenees-orientales"},
+    "81": {"nom": "Tarn", "slug": "81-tarn"},
+    "82": {"nom": "Tarn-et-Garonne", "slug": "82-tarn-et-garonne"},
     "83": {"nom": "Var", "slug": "83-var"},
     "84": {"nom": "Vaucluse", "slug": "84-vaucluse"},
 }
@@ -103,7 +110,8 @@ MIN_VENTES_AFFICHAGE = 5
 
 # --- Simplification des contours -------------------------------------------
 DECIMALES_CONTOURS = 4     # ~10 m, largement suffisant a l'echelle d'un departement
-# ~160 m. Mesure faite sur les 14 departements : a 160 m les contours pesent
+# ~160 m. Mesure faite sur 14 departements (avant l'ajout des 7 d'Occitanie) :
+# a 160 m les contours pesaient
 # 378 Ko compresses, a 240 m ils tomberaient a 303 Ko. L'ecart de trace atteint
 # au pire 4 pixels au zoom 12 -- or a ce zoom les communes ne sont plus que des
 # reperes en trait fin derriere les points de vente, et au zoom d'ensemble
@@ -209,7 +217,7 @@ def quantile(valeurs_triees, q):
 # --------------------------------------------------------------------------
 # Telechargement
 # --------------------------------------------------------------------------
-# Un passage du robot enchaine 70 telechargements (14 departements x 5 annees),
+# Un passage du robot enchaine 105 telechargements (21 departements x 5 annees),
 # tous les mois. Le reseau finira par lacher sur l'un d'eux. Trois regles :
 #   1. une panne se reessaie, une reponse claire du serveur ne se reessaie pas ;
 #   2. un fichier incomplet n'est jamais confondu avec un fichier complet ;
@@ -327,7 +335,7 @@ def millesimes_disponibles(nb_annees):
             if not etat:
                 # Un seul departement absent suffit a disqualifier l'annee : on
                 # n'interroge pas les treize autres. Sans cet arret, l'annee en
-                # cours -- qui n'est jamais encore publiee -- coutait quatorze
+                # cours -- qui n'est jamais encore publiee -- coutait autant de
                 # sondages au lieu d'un, chacun pouvant etre reessaye trois fois.
                 complet = False
                 break
@@ -352,7 +360,7 @@ def telecharger_millesimes(millesimes, dossier, telechargeur=telecharger):
     """Telecharge la matrice (annee x departement) et refuse de la publier trouee.
 
     Renvoie (fichiers, millesimes_reellement_obtenus). Les millesimes renvoyes
-    sont ceux dont les 14 departements ont ete telecharges : meta.json ne peut
+    sont ceux dont TOUS les departements ont ete telecharges : meta.json ne peut
     donc plus annoncer une annee absente des donnees. C'est le contrat que la
     regle I de controler() verifie de l'autre cote, sur les fichiers publies.
 
