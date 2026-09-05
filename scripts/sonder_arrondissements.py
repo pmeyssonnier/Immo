@@ -196,6 +196,52 @@ def essayer(nom, url, licence):
     return trouves
 
 
+def reproduire_le_chemin_du_robot():
+    """Rejoue EXACTEMENT ce que fait le robot, qui lui a echoue.
+
+    La sonde recevait les 25 polygones ; le robot n'en a recu aucun sur la meme
+    URL. La difference ne peut venir que du chemin emprunte : telecharger() a ses
+    propres en-tetes, ecrit dans un fichier, verifie la taille annoncee. On rejoue
+    donc ce chemin-la et on imprime ce qui arrive vraiment.
+    """
+    import tempfile
+    journal("\n" + "=" * 74)
+    journal("REPRODUCTION DU CHEMIN DU ROBOT (telecharger + json.load)")
+    journal("=" * 74)
+    journal("  URL du robot, longueur %d :" % len(prep.URL_ARRONDISSEMENTS))
+    journal("  %s" % prep.URL_ARRONDISSEMENTS[:150])
+    journal("  en-tetes du robot : %s" % prep.ENTETES_HTTP)
+
+    with tempfile.TemporaryDirectory() as d:
+        cible = os.path.join(d, "arrondissements.geojson")
+        ok = prep.telecharger(prep.URL_ARRONDISSEMENTS, cible)
+        journal("  telecharger() -> %s" % ok)
+        if not ok or not os.path.exists(cible):
+            journal("  -> le telechargement lui-meme echoue.")
+            return
+        taille = os.path.getsize(cible)
+        journal("  fichier recu : %d octets" % taille)
+        with open(cible, "rb") as flux:
+            debut = flux.read(600)
+        journal("  600 premiers octets :")
+        journal("    %r" % debut)
+        try:
+            with open(cible, encoding="utf-8") as flux:
+                charge = json.load(flux)
+        except Exception as e:
+            journal("  -> JSON illisible : %s" % e)
+            return
+        if isinstance(charge, dict):
+            journal("  clefs de premier niveau : %s" % sorted(charge)[:10])
+            entites = charge.get("features")
+            journal("  features : %s" % (len(entites) if entites is not None else "ABSENT"))
+            if entites:
+                journal("  proprietes de la 1re : %s"
+                        % sorted((entites[0].get("properties") or {}))[:12])
+        trouves = codes_du_geojson(charge)
+        journal("  codes DVF retrouves : %d / 25" % len(trouves))
+
+
 def main():
     journal("SONDE ARRONDISSEMENTS -- aucune ecriture dans data/, aucun commit")
     journal("Cherche les contours de %d arrondissements (Marseille 16, Lyon 9)"
@@ -206,6 +252,8 @@ def main():
     for nom, url, licence in CANDIDATES:
         if essayer(nom, url, licence):
             retenues += 1
+
+    reproduire_le_chemin_du_robot()
 
     journal("\n" + "=" * 74)
     journal("BILAN : %d source(s) exploitable(s)" % retenues)
