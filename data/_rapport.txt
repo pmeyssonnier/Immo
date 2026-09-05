@@ -6,12 +6,19 @@ Millesimes candidats : 2021, 2022, 2023, 2024, 2025
   telechargement 07 2021
   telechargement 09 2021
   telechargement 11 2021
+  telechargement 12 2021
   telechargement 13 2021
   telechargement 26 2021
   telechargement 30 2021
   telechargement 31 2021
+  telechargement 32 2021
   telechargement 34 2021
+  telechargement 46 2021
+  telechargement 48 2021
+  telechargement 65 2021
   telechargement 66 2021
+  telechargement 81 2021
+  telechargement 82 2021
   telechargement 83 2021
   telechargement 84 2021
   telechargement 04 2022
@@ -20,12 +27,19 @@ Millesimes candidats : 2021, 2022, 2023, 2024, 2025
   telechargement 07 2022
   telechargement 09 2022
   telechargement 11 2022
+  telechargement 12 2022
   telechargement 13 2022
   telechargement 26 2022
   telechargement 30 2022
   telechargement 31 2022
+  telechargement 32 2022
   telechargement 34 2022
+  telechargement 46 2022
+  telechargement 48 2022
+  telechargement 65 2022
   telechargement 66 2022
+  telechargement 81 2022
+  telechargement 82 2022
   telechargement 83 2022
   telechargement 84 2022
   telechargement 04 2023
@@ -34,12 +48,19 @@ Millesimes candidats : 2021, 2022, 2023, 2024, 2025
   telechargement 07 2023
   telechargement 09 2023
   telechargement 11 2023
+  telechargement 12 2023
   telechargement 13 2023
   telechargement 26 2023
   telechargement 30 2023
   telechargement 31 2023
+  telechargement 32 2023
   telechargement 34 2023
+  telechargement 46 2023
+  telechargement 48 2023
+  telechargement 65 2023
   telechargement 66 2023
+  telechargement 81 2023
+  telechargement 82 2023
   telechargement 83 2023
   telechargement 84 2023
   telechargement 04 2024
@@ -48,12 +69,19 @@ Millesimes candidats : 2021, 2022, 2023, 2024, 2025
   telechargement 07 2024
   telechargement 09 2024
   telechargement 11 2024
+  telechargement 12 2024
   telechargement 13 2024
   telechargement 26 2024
   telechargement 30 2024
   telechargement 31 2024
+  telechargement 32 2024
   telechargement 34 2024
+  telechargement 46 2024
+  telechargement 48 2024
+  telechargement 65 2024
   telechargement 66 2024
+  telechargement 81 2024
+  telechargement 82 2024
   telechargement 83 2024
   telechargement 84 2024
   telechargement 04 2025
@@ -62,12 +90,19 @@ Millesimes candidats : 2021, 2022, 2023, 2024, 2025
   telechargement 07 2025
   telechargement 09 2025
   telechargement 11 2025
+  telechargement 12 2025
   telechargement 13 2025
   telechargement 26 2025
   telechargement 30 2025
   telechargement 31 2025
+  telechargement 32 2025
   telechargement 34 2025
+  telechargement 46 2025
+  telechargement 48 2025
+  telechargement 65 2025
   telechargement 66 2025
+  telechargement 81 2025
+  telechargement 82 2025
   telechargement 83 2025
   telechargement 84 2025
   couverture (X = obtenu)  2021  2022  2023  2024  2025
@@ -77,44 +112,58 @@ Millesimes candidats : 2021, 2022, 2023, 2024, 2025
   07 Ardèche                  X     X     X     X     X
   09 Ariège                   X     X     X     X     X
   11 Aude                     X     X     X     X     X
+  12 Aveyron                  X     X     X     X     X
   13 Bouches-du-Rhône         X     X     X     X     X
   26 Drôme                    X     X     X     X     X
   30 Gard                     X     X     X     X     X
   31 Haute-Garonne            X     X     X     X     X
+  32 Gers                     X     X     X     X     X
   34 Hérault                  X     X     X     X     X
+  46 Lot                      X     X     X     X     X
+  48 Lozère                   X     X     X     X     X
+  65 Hautes-Pyrénées          X     X     X     X     X
   66 Pyrénées-Orientales      X     X     X     X     X
+  81 Tarn                     X     X     X     X     X
+  82 Tarn-et-Garonne          X     X     X     X     X
   83 Var                      X     X     X     X     X
   84 Vaucluse                 X     X     X     X     X
 Millesimes retenus : 2021, 2022, 2023, 2024, 2025
-Mutations contenant une maison : 413885
-  rejet R1_pas_une_vente           2607
-  rejet R2_vente_mixte            13017
-  rejet R3_plusieurs_maisons       4156
-  rejet R4_lots_copropriete        5080
-  rejet R5_plusieurs_communes      1082
-  rejet R6_sans_coordonnees        6017
-  rejet R7_champs_manquants         200
-  rejet B_bornes_implausibles      4134
+Mutations contenant une maison : 507344
+  rejet R1_pas_une_vente           3082
+  rejet R2_vente_mixte            16434
+  rejet R3_plusieurs_maisons       5671
+  rejet R4_lots_copropriete        5562
+  rejet R5_plusieurs_communes      1805
+  rejet R6_sans_coordonnees        7114
+  rejet R7_champs_manquants         260
+  rejet B_bornes_implausibles      6221
   valeur_fonciere incoherente entre lignes : 0  (doit rester 0)
-Aberrations retirees (MAD) : 12263 sur 377592 (3.2 %)
-Ventes retenues : 365329
+Aberrations retirees (MAD) : 13696 sur 461195 (3.0 %)
+Ventes retenues : 447499
 Contours des communes...
-  contours : 251375 sommets -> 89947 (64 % retires)
-  3929 communes, 3929 ont au moins un voisin
-  64 commune(s) sans vente nommee(s) d'apres les contours
+  contours : 409503 sommets -> 148083 (64 % retires)
+  6138 communes, 6138 ont au moins un voisin
+  103 commune(s) sans vente nommee(s) d'apres les contours
 Ecriture dans data ...
-  prix du terrain (valeur departementale) : 04 = 25.0 EUR/m2 sur 7614 ventes avec terrain, 05 = 23.2 EUR/m2 sur 4430 ventes avec terrain, 06 = non mesurable (aucun ajustement propose) sur 17031 ventes avec terrain, 07 = 17.3 EUR/m2 sur 14936 ventes avec terrain, 09 = 17.8 EUR/m2 sur 10245 ventes avec terrain, 11 = 45.6 EUR/m2 sur 23776 ventes avec terrain, 13 = 20.1 EUR/m2 sur 37336 ventes avec terrain, 26 = 10.3 EUR/m2 sur 18986 ventes avec terrain, 30 = 23.8 EUR/m2 sur 31041 ventes avec terrain, 31 = non mesurable (aucun ajustement propose) sur 39909 ventes avec terrain, 34 = 47.8 EUR/m2 sur 42326 ventes avec terrain, 66 = 62.8 EUR/m2 sur 25359 ventes avec terrain, 83 = non mesurable (aucun ajustement propose) sur 40945 ventes avec terrain, 84 = 26.3 EUR/m2 sur 21932 ventes avec terrain
+  prix du terrain (valeur departementale) : 04 = 25.0 EUR/m2 sur 7614 ventes avec terrain, 05 = 23.2 EUR/m2 sur 4430 ventes avec terrain, 06 = non mesurable (aucun ajustement propose) sur 17031 ventes avec terrain, 07 = 17.3 EUR/m2 sur 14936 ventes avec terrain, 09 = 17.8 EUR/m2 sur 10245 ventes avec terrain, 11 = 45.6 EUR/m2 sur 23776 ventes avec terrain, 12 = 12.9 EUR/m2 sur 12601 ventes avec terrain, 13 = 20.3 EUR/m2 sur 37336 ventes avec terrain, 26 = 10.6 EUR/m2 sur 18986 ventes avec terrain, 30 = 22.0 EUR/m2 sur 31041 ventes avec terrain, 31 = non mesurable (aucun ajustement propose) sur 39909 ventes avec terrain, 32 = 10.7 EUR/m2 sur 10862 ventes avec terrain, 34 = 48.7 EUR/m2 sur 42326 ventes avec terrain, 46 = 11.8 EUR/m2 sur 10843 ventes avec terrain, 48 = 13.4 EUR/m2 sur 3310 ventes avec terrain, 65 = 5.6 EUR/m2 sur 9682 ventes avec terrain, 66 = 64.8 EUR/m2 sur 25359 ventes avec terrain, 81 = 6.7 EUR/m2 sur 19539 ventes avec terrain, 82 = non mesurable (aucun ajustement propose) sur 12937 ventes avec terrain, 83 = non mesurable (aucun ajustement propose) sur 40945 ventes avec terrain, 84 = 24.7 EUR/m2 sur 21932 ventes avec terrain
   Alpes-de-Haute-Provence    8002 ventes, mediane  2273 EUR/m2
   Hautes-Alpes          4828 ventes, mediane  2548 EUR/m2
   Alpes-Maritimes      19672 ventes, mediane  4147 EUR/m2
   Ardèche              15378 ventes, mediane  1879 EUR/m2
   Ariège               10600 ventes, mediane  1320 EUR/m2
   Aude                 26814 ventes, mediane  1673 EUR/m2
+  Aveyron              12783 ventes, mediane  1276 EUR/m2
   Bouches-du-Rhône     41406 ventes, mediane  3926 EUR/m2
   Drôme                20207 ventes, mediane  2222 EUR/m2
   Gard                 32420 ventes, mediane  2381 EUR/m2
   Haute-Garonne        42782 ventes, mediane  2623 EUR/m2
+  Gers                 11287 ventes, mediane  1304 EUR/m2
   Hérault              46492 ventes, mediane  2824 EUR/m2
+  Lot                  11003 ventes, mediane  1254 EUR/m2
+  Lozère                3393 ventes, mediane  1344 EUR/m2
+  Hautes-Pyrénées      10153 ventes, mediane  1546 EUR/m2
   Pyrénées-Orientales   28429 ventes, mediane  2381 EUR/m2
+  Tarn                 20091 ventes, mediane  1345 EUR/m2
+  Tarn-et-Garonne      13460 ventes, mediane  1446 EUR/m2
   Var                  44962 ventes, mediane  3371 EUR/m2
   Vaucluse             23337 ventes, mediane  2627 EUR/m2
