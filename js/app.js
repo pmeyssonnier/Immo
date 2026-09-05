@@ -48,6 +48,20 @@ const etat = {
 // l'estimation en cours, et reciproquement.
 const demandes = creerSuiviDeDemandes();
 
+// Un SECOND suivi, independant, pour les chargements de ventes de la carte.
+//
+// Le bandeau rouge « certaines ventes n'ont pas pu etre telechargees » restait
+// affiche pour toujours : erreurDonnees etait posee, jamais remise a null. Reseau
+// coupe puis revenu, les ventes s'affichaient et le bandeau mentait.
+//
+// L'effacer au premier succes venu serait faux dans l'autre sens : un chargement
+// LENT qui reussit apres un echec PLUS RECENT effacerait une erreur encore vraie.
+// D'ou ce compteur : un succes n'efface l'erreur que s'il est le dernier
+// chargement parti. On reutilise creerSuiviDeDemandes plutot que d'inventer un
+// second mecanisme -- mais un suivi SEPARE, car majVue() se passe volontairement
+// de jeton d'estimation (voir son commentaire) et doit continuer a s'en passer.
+const chargements = creerSuiviDeDemandes();
+
 const abonnes = [];
 function majEtat(modifications) {
   Object.assign(etat, modifications);
@@ -236,10 +250,11 @@ const actions = {
       commandesCarte.centrerSur(commune.lat, commune.lon, Math.max(etat.zoom, 12));
     }
 
+    const jetonChargement = chargements.nouvelle();
     try {
       await assurerVentes([code]);
       if (!demandes.estLaDerniere(jeton)) return;
-      majEtat({});
+      majEtat(chargements.estLaDerniere(jetonChargement) ? { erreurDonnees: null } : {});
     } catch (erreur) {
       if (!demandes.estLaDerniere(jeton)) return;
       majEtat({ erreurDonnees: erreur.message });
@@ -270,9 +285,11 @@ const actions = {
         (c) => c.lat !== null && c.n > 0 && bbox.contains([c.lat, c.lon]),
       );
       if (visibles.length && visibles.length <= CONFIG.MAX_COMMUNES_SIMULTANEES) {
+        const jetonChargement = chargements.nouvelle();
         try {
           await assurerVentes(visibles.map((c) => c.code));
-          majEtat({});
+          majEtat(chargements.estLaDerniere(jetonChargement)
+            ? { erreurDonnees: null } : {});
         } catch (erreur) {
           // La carte doit rester utilisable : on signale, on ne bloque pas.
           majEtat({ erreurDonnees: erreur.message });

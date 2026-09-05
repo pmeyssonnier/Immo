@@ -699,6 +699,22 @@ verifier((await page.locator(".valeur-principale").count()) === 0,
   "aucun montant calculé sur les communes voisines en cas de panne");
 await page.unroute("**/data/ventes/30/30189.json");
 
+// --- 6 octies. le bandeau d'erreur DISPARAÎT quand le réseau revient -------
+// Signalé par un audit : erreurDonnees était posée et jamais remise à null. Le
+// bandeau rouge « certaines ventes n'ont pas pu être téléchargées » restait donc
+// affiché pour toujours, alors que les ventes s'affichaient de nouveau.
+const bandeau = page.locator("#avertissement-donnees");
+verifier(await bandeau.isVisible(),
+  "le bandeau d'erreur est bien affiché après la panne");
+// Réseau rétabli : on ouvre une AUTRE commune, car rouvrir la même ne fait rien
+// (garde-fou contre les clics manqués sur la carte).
+await page.fill("#champ-recherche", "uzes");
+await page.waitForTimeout(700);
+await page.click('li[data-code="30334"]');
+await page.waitForTimeout(2500);
+verifier(!(await bandeau.isVisible()),
+  "le bandeau disparaît une fois les ventes de nouveau téléchargées");
+
 // --- 7. aucune erreur JavaScript -----------------------------------------
 const vraiesErreurs = erreurs.filter((e) => !/tile|ERR_|net::|Failed to load resource/i.test(e));
 verifier(vraiesErreurs.length === 0,
