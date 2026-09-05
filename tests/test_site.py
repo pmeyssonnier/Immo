@@ -434,6 +434,23 @@ class TestSite(unittest.TestCase):
                                  "%s annonce %d departements, il y en a %d"
                                  % (fichier, annonce, attendu))
 
+    def test_autant_de_couleurs_que_de_bandes(self):
+        """La palette doit compter un cran de plus que les seuils.
+
+        couleurPrix() plafonne sur la derniere couleur : s'il manque des teintes,
+        les bandes hautes deviennent indistinguables en silence. C'est exactement
+        le piege de l'echelle ponderee -- passer de 7 a 9 classes sans etendre la
+        palette aurait rendu les trois bandes du haut identiques, et donc annule
+        le benefice recherche pour Marseille.
+        """
+        seuils = self.json("data/meta.json")["seuils_couleurs"]
+        config = self.obtenir("js/config.js").decode("utf-8")
+        bloc = config.split("COULEURS:")[1].split("]")[0]
+        couleurs = re.findall(r'"(#[0-9a-fA-F]{6})"', bloc)
+        self.assertEqual(len(couleurs), len(seuils) + 1,
+                         "%d couleurs pour %d seuils : les bandes hautes seraient "
+                         "confondues" % (len(couleurs), len(seuils)))
+
     def test_extension_json_pour_les_contours(self):
         """GitHub Pages ne compresse pas les fichiers .geojson : 4x plus lourd."""
         self.assertTrue(os.path.exists(os.path.join(RACINE, "data", "communes-geo.json")))
