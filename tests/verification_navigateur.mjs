@@ -754,6 +754,53 @@ for (const [champ, valeur, quoi] of [["#surface-terrain", "-500", "terrain néga
   await page.waitForTimeout(300);
 }
 
+// --- 6 bis. sur telephone, « carte » doit AMENER la carte sous les yeux ----
+//
+// Le bouton n'a jamais ete casse : la popup s'ouvrait bel et bien. Mais sur un
+// ecran de telephone la mise en page s'empile -- liste, carte, panneau -- et,
+// au moment ou l'on lit le tableau des comparables, la carte se trouve plusieurs
+// centaines de pixels AU-DESSUS de l'ecran. Mesure avant correction, sur
+// 390x844 : bord bas de la carte a -615 px. Le bouton paraissait donc mort.
+//
+// Ce controle exige les deux choses a la fois : une popup, ET une carte
+// reellement visible. Verifier la seule popup aurait laisse passer le defaut.
+{
+  const tel = await navigateur.newPage({
+    viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+  });
+  await tel.goto(`http://localhost:${PORT}${BASE}index.html`, { waitUntil: "networkidle" });
+  await tel.waitForSelector("#application:not([hidden])", { timeout: 30000 });
+  await tel.evaluate((c) => document.querySelector(`#liste-communes li[data-code="${c}"]`).click(),
+    "30334");
+  await tel.waitForTimeout(1500);
+  await tel.fill("#surface-habitable", "135");
+  await tel.click(".bouton-principal");
+  await tel.waitForSelector(".resultat", { timeout: 15000 });
+
+  const bouton = tel.locator("[data-comparable]").first();
+  if (await bouton.count()) {
+    await bouton.scrollIntoViewIfNeeded();
+    const avantClic = await tel.evaluate(
+      () => document.querySelector("#zone-carte").getBoundingClientRect().bottom);
+    await bouton.click();
+    await tel.waitForTimeout(1500);
+    const etat = await tel.evaluate(() => {
+      const c = document.querySelector("#zone-carte").getBoundingClientRect();
+      return { haut: c.top, bas: c.bottom, ecran: window.innerHeight,
+               popup: document.querySelectorAll(".leaflet-popup").length };
+    });
+    const carteVisible = etat.bas > 0 && etat.haut < etat.ecran;
+    verifier(etat.popup > 0 && carteVisible,
+      `téléphone : « carte » ouvre la vente ET remonte la carte à l'écran `
+      + `(avant : ${Math.round(avantClic)} px, après : ${Math.round(etat.haut)}`
+      + `–${Math.round(etat.bas)} px)`);
+  } else {
+    verifier(false, "téléphone : aucun bouton « carte » dans les comparables");
+  }
+  await tel.screenshot({ path: SP + "/apercu-4-telephone.png" });
+  await tel.close();
+}
+
 // --- 7. aucune erreur JavaScript -----------------------------------------
 const vraiesErreurs = erreurs.filter((e) => !/tile|ERR_|net::|Failed to load resource/i.test(e));
 verifier(vraiesErreurs.length === 0,
