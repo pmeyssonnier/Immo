@@ -40,9 +40,44 @@ export const REGLAGES = {
   // plafonnee a "faible" : l'estimation repose alors surtout sur les voisines.
   MIN_VENTES_COMMUNE_PROPRE: 5,
 
-  // Une fourchette ne descend jamais sous +/-4 % ni ne depasse +/-12 %
-  FOURCHETTE_MIN: 0.04,
-  FOURCHETTE_MAX: 0.12,
+  // --- La fourchette -------------------------------------------------------
+  // Coefficients MESURES, pas devines. Produits par
+  //   node scripts/calibrer_fourchette.mjs
+  // qui calcule, pour chaque vente d'un backtest, le rapport reel / estime,
+  // puis en prend les quantiles. Calibres sur 38 742 ventes de 2023-2024,
+  // verifies sur les 21 198 ventes de 2025 que le calibrage n'avait jamais
+  // vues : 67,4 % de couverture pour 67 % promis.
+  //
+  // Ce que faisait le code d'avant, et pourquoi c'etait faux : il affichait
+  // 1,57 x IQR / racine(n), l'intervalle de confiance de la MEDIANE. Cela
+  // repond a « connait-on bien le prix au m2 MOYEN de cette commune ? » -- oui,
+  // tres bien, il y a des centaines de ventes, d'ou le racine(n) qui ecrasait
+  // tout et faisait taper un plancher de +/-4 % presque partout. Mais
+  // l'utilisateur demande « ou va tomber le prix de MON bien ? », et la
+  // dispersion entre deux biens comparables n'apparaissait nulle part.
+  // Couverture reelle de cette fourchette-la, mesuree : 20,9 %.
+  //
+  // La fourchette PENCHE VERS LE BAS, et il ne faut pas la « recentrer » : le
+  // moteur sur-evalue (biais moyen +14,7 %), et des bornes calees sur les
+  // rapports observes rattrapent ce decalage au lieu de le cacher. Le
+  // penchement se lit sur le centre geometrique -- racine(bas x haut), les
+  // coefficients etant multiplicatifs --, qui vaut 0,89 a 0,95 selon la cle. Le
+  // centre arithmetique, lui, ne le montre pas : il tombe a 0,998 pour
+  // « moyenne » par pure coincidence.
+  //
+  // Toute retouche des ponderations rend ces nombres caducs : relancer le
+  // calibrage. tests/test_fourchette.mjs remesure la couverture et echoue si la
+  // promesse n'est plus tenue.
+  COUVERTURE_ANNONCEE: "2 fois sur 3",
+  FOURCHETTE: {
+    bonne:   [0.714, 1.259],
+    moyenne: [0.625, 1.371],
+    faible:  [0.582, 1.470],
+    // Le palier 2 porte l'etiquette « faible », mais son erreur mediane est de
+    // 40 % contre 33 % pour un « faible » ordinaire : deux populations derriere
+    // une meme etiquette, d'ou une entree a part.
+    bandes:  [0.480, 1.647],
+  },
 
   // Ajustement terrain optionnel : au-dela, la valeur du terrain sature
   TERRAIN_AJUSTEMENT_MAX: 2500,
@@ -239,12 +274,6 @@ export function estimer(entree) {
   );
 
   const valeur = q50 * entree.surface;
-  const interquartile = q75 - q25;
-  // Intervalle de confiance ~95 % de la mediane (encoche de boite a moustaches)
-  const demiIC = (1.57 * interquartile * entree.surface) / Math.sqrt(nEffectif);
-  const demiFourchette = borner(
-    demiIC, REGLAGES.FOURCHETTE_MIN * valeur, REGLAGES.FOURCHETTE_MAX * valeur,
-  );
 
   // La commune elle-meme doit avoir "parle" : une estimation portee uniquement
   // par les communes voisines ne merite jamais mieux que "faible", meme si les
@@ -269,6 +298,11 @@ export function estimer(entree) {
   }
 
   const valeurFinale = Math.max(0, valeur + ajustement);
+  // La fourchette s'applique a la valeur FINALE, ajustement terrain compris.
+  // L'ancien calcul bornait la demi-largeur sur `valeur` (avant ajustement) puis
+  // l'appliquait a `valeurFinale` (apres) : les pourcentages annonces n'etaient
+  // alors plus ceux du montant affiche.
+  const [coefBas, coefHaut] = REGLAGES.FOURCHETTE[confiance];
   return {
     ...base,
     confiance,
@@ -280,8 +314,8 @@ export function estimer(entree) {
     valeur: arrondirValeur(valeurFinale),
     valeurExacte: valeurFinale,
     fourchette: [
-      arrondirValeur(Math.max(0, valeurFinale - demiFourchette)),
-      arrondirValeur(valeurFinale + demiFourchette),
+      arrondirValeur(valeurFinale * coefBas),
+      arrondirValeur(valeurFinale * coefHaut),
     ],
   };
 }
@@ -312,8 +346,8 @@ export function estimerParBandes(entree) {
     valeur: arrondirValeur(valeur),
     valeurExacte: valeur,
     fourchette: [
-      arrondirValeur(valeur * (1 - REGLAGES.FOURCHETTE_MAX)),
-      arrondirValeur(valeur * (1 + REGLAGES.FOURCHETTE_MAX)),
+      arrondirValeur(valeur * REGLAGES.FOURCHETTE.bandes[0]),
+      arrondirValeur(valeur * REGLAGES.FOURCHETTE.bandes[1]),
     ],
     comparables: [],
   };

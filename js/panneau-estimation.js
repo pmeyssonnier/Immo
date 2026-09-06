@@ -1,6 +1,7 @@
 // Panneau de droite : fiche de la commune + estimateur + ventes comparables.
 
 import { echapper, euros, eurosParM2, etoiles, moisEnTexte, nombre, surface } from "./format.js";
+import { REGLAGES } from "./estimation.js";
 
 let racineElement = null;
 let actionsElement = null;
@@ -153,7 +154,8 @@ function construireSynthese(commune, parametres, resultat, meta) {
     lignes.push("Données insuffisantes pour avancer une valeur.");
   } else {
     lignes.push(`Valeur estimée : ${euros(resultat.valeur)}`);
-    lignes.push(`Fourchette : ${euros(resultat.fourchette[0])} à ${euros(resultat.fourchette[1])}`);
+    lignes.push(`${REGLAGES.COUVERTURE_ANNONCEE}, le prix réel est entre `
+      + `${euros(resultat.fourchette[0])} et ${euros(resultat.fourchette[1])}`);
     lignes.push(`Prix au m² retenu : ${eurosParM2(Math.round(resultat.prixM2Median))}`);
     lignes.push(`Dispersion locale : ${eurosParM2(Math.round(resultat.prixM2Q1))}`
       + ` à ${eurosParM2(Math.round(resultat.prixM2Q3))}`);
@@ -200,7 +202,7 @@ function blocResultat(etat) {
       <p class="refus-titre">Pas assez de ventes pour estimer ce bien.</p>
       <p>${explication}</p>
       <p class="detail">${resultat.nBrut} vente(s) comparable(s) trouvée(s) — il en faudrait
-      au moins ${Math.ceil(6)} de vraiment proches. Élargissez la surface recherchée
+      au moins ${REGLAGES.SEUIL_REFUS} de vraiment proches. Élargissez la surface recherchée
       ou appuyez-vous sur les ventes affichées sur la carte.</p>
     </div>`;
   }
@@ -226,8 +228,11 @@ function blocResultat(etat) {
 
   return `<div class="resultat">
     <p class="valeur-principale">${euros(resultat.valeur)}</p>
-    <p class="fourchette">fourchette&nbsp;: ${euros(resultat.fourchette[0])}
-       – ${euros(resultat.fourchette[1])}</p>
+    <p class="fourchette"><strong>${REGLAGES.COUVERTURE_ANNONCEE}</strong>, le prix réel
+       est entre ${euros(resultat.fourchette[0])} et ${euros(resultat.fourchette[1])}</p>
+    <p class="fourchette-note">Ce n'est pas une marge d'erreur théorique&nbsp;: c'est la
+       fréquence relevée en rejouant l'estimation sur des dizaines de milliers de ventes
+       passées.</p>
     ${ajustement}
     <p class="confiance confiance-${resultat.confiance}">
       Fiabilité&nbsp;: <strong>${titre}</strong> — ${explication}
@@ -241,7 +246,7 @@ function blocResultat(etat) {
           équivalent(s) plein(s) — ${LIBELLES_PALIER[resultat.palier]}</li>
       ${resultat.palier === 1 ? `<li><strong>${resultat.nMemeCommune}</strong> de ces ventes
           seulement sont dans la commune même
-          ${resultat.nMemeCommune < 5 ? "<em>— l'estimation repose donc surtout sur les communes voisines</em>" : ""}</li>` : ""}
+          ${resultat.nMemeCommune < REGLAGES.MIN_VENTES_COMMUNE_PROPRE ? "<em>— l'estimation repose donc surtout sur les communes voisines</em>" : ""}</li>` : ""}
     </ul>
     <button type="button" id="copier-synthese" class="bouton-secondaire">Copier la synthèse</button>
     <p class="avertissement">DVF ne connaît ni l'état du bien, ni les travaux, ni la vue.

@@ -171,9 +171,10 @@ TERRAIN_PLAFOND_REGRESSION = 2500.0
 #
 # La borne basse est un seuil de PERTINENCE, pas de plausibilite. L'ajustement
 # est plafonne a 2 500 m2 d'ecart de terrain : a 3 EUR/m2, cela represente
-# 7 500 EUR, soit environ 3 % d'une maison a 250 000 EUR -- moins que la
-# fourchette minimale de +/-4 % que l'estimation s'impose deja. En dessous, le
-# chiffre serait plus petit que sa propre marge d'erreur.
+# 7 500 EUR, soit environ 3 % d'une maison a 250 000 EUR. La fourchette affichee
+# par l'estimation est bien plus large que cela : mesuree, elle va de -29 % a
+# +26 % pour une fiabilite « bonne ». En dessous de ce seuil, l'ajustement serait
+# donc invisible -- un chiffre plus petit que sa propre incertitude.
 # Mesure a l'appui : la Haute-Garonne ressort a 0,85 EUR/m2, soit +2 100 EUR
 # pour 2 500 m2 de terrain supplementaires. C'est du bruit, pas une mesure ;
 # avec l'ancienne borne a 1,0 elle passait pourtant de justesse.

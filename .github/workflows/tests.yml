@@ -37,7 +37,9 @@ jobs:
         # Cette liste explicite a un défaut : un fichier de tests ajouté au dépôt
         # n'est jamais lancé tant que personne ne pense à l'inscrire ici. C'est
         # ce qui est arrivé à test_demandes.mjs et test_donnees.mjs, écrits puis
-        # oubliés. Ils y sont maintenant.
+        # oubliés — puis, malgré cet avertissement, à test_backtest.mjs. Les
+        # trois y sont maintenant. Le piège est réel : penser à cette liste en
+        # même temps qu'on ajoute un fichier de tests.
         run: >-
           node --test
           tests/test_estimation.mjs
@@ -46,3 +48,5 @@ jobs:
           tests/test_format.mjs
           tests/test_donnees.mjs
           tests/test_demandes.mjs
+          tests/test_backtest.mjs
+          tests/test_fourchette.mjs

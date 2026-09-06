@@ -603,9 +603,9 @@ if __name__ == "__main__":
 class TestPertinenceDuPrixDuTerrain(unittest.TestCase):
     """Une pente trop faible n'est pas une mesure : c'est du bruit.
 
-    L'ajustement terrain est plafonne a 2 500 m2. Sous 3 EUR/m2, il pese moins
-    que la fourchette minimale que l'estimation s'impose deja : le publier
-    donnerait l'illusion d'une precision inexistante.
+    L'ajustement terrain est plafonne a 2 500 m2. Sous 3 EUR/m2, il pese bien
+    moins que la fourchette affichee par l'estimation : le publier donnerait
+    l'illusion d'une precision inexistante.
     """
 
     @staticmethod
