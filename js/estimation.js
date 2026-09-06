@@ -230,6 +230,34 @@ export function arrondirValeur(valeur) {
   return Math.round(valeur / pas) * pas;
 }
 
+/**
+ * De combien l'estimation peut s'ecarter, en pourcentage, vers le bas et vers
+ * le haut. C'est ce que l'interface affiche a la place de l'ancienne etiquette
+ * « Fiabilite : Bonne / Moyenne / Faible ».
+ *
+ * POURQUOI CE REMPLACEMENT. Le mot « Fiabilite » mesurait un VOLUME de
+ * comparables, pas une exactitude. Il disait vrai par ricochet -- l'erreur
+ * mediane mesuree va de 17,9 % en « bonne » a 33,3 % en « faible » -- mais
+ * « Bonne » ne dit pas a quel point on peut se tromper, alors que « -29 % /
+ * +26 % » le dit.
+ *
+ * POURQUOI ON RECALCULE AU LIEU DE LIRE REGLAGES.FOURCHETTE. Les coefficients
+ * sont indexes sur la confiance, mais le repli departemental porte l'etiquette
+ * « faible » tout en utilisant la cle « bandes », plus large. Lire la table par
+ * la confiance afficherait donc, dans ce cas, une amplitude qui n'est pas celle
+ * des montants montres juste au-dessus. En partant de la fourchette publiee, le
+ * chiffre annonce est celui de l'ecran par construction -- arrondi commercial
+ * compris.
+ */
+export function amplitude(resultat) {
+  if (!resultat || !resultat.fourchette || !resultat.valeur) return null;
+  const [bas, haut] = resultat.fourchette;
+  return {
+    bas: Math.round(100 * (bas / resultat.valeur - 1)),
+    haut: Math.round(100 * (haut / resultat.valeur - 1)),
+  };
+}
+
 // --- L'estimation elle-meme ------------------------------------------------
 
 /**

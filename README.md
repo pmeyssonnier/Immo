@@ -89,8 +89,12 @@ d'adresse — ce qui rend la carte nettement plus lisible.
 - **Dispersion du marché local** : à quel point les biens de la commune sont
   hétérogènes. **Ce n'est pas la même chose que la fourchette** — c'est la
   diversité réelle des maisons du secteur.
-- **Fiabilité** : *Bonne* / *Moyenne* / *Faible*. S'il n'y a vraiment pas assez de
-  ventes, le site **refuse d'afficher un chiffre** plutôt que d'en inventer un.
+- **Amplitude** : de combien l'estimation peut s'écarter, en pourcentage — par
+  exemple « −29 % / +26 % ». Elle remplace l'ancienne étiquette *Bonne / Moyenne /
+  Faible*, qui nommait un niveau sans dire de combien on pouvait se tromper. Plus
+  les ventes comparables sont rares ou lointaines, plus l'amplitude s'ouvre. S'il
+  n'y a vraiment pas assez de ventes, le site **refuse d'afficher un chiffre**
+  plutôt que d'en inventer un.
 
 ---
 
