@@ -1,7 +1,7 @@
 // Panneau de droite : fiche de la commune + estimateur + ventes comparables.
 
 import { echapper, euros, eurosParM2, etoiles, moisEnTexte, nombre, surface } from "./format.js";
-import { REGLAGES } from "./estimation.js";
+import { REGLAGES, amplitude } from "./estimation.js";
 
 let racineElement = null;
 let actionsElement = null;
@@ -11,12 +11,25 @@ let dernierResultat = null;
 // en pleine saisie.
 let derniereEmpreinte = null;
 
+// Le premier element servait a AFFICHER un niveau (« Bonne », « Moyenne »...).
+// L'ecran montre desormais l'amplitude reelle a la place : un pourcentage dit ce
+// que « Bonne » ne disait pas, c'est-a-dire de combien on peut se tromper. Les
+// libelles restent pour deux usages ou ils ont encore un sens : le conseil qui
+// accompagne le chiffre, et le code couleur (vert / orange / rouge).
 const LIBELLES_CONFIANCE = {
   bonne: ["Bonne", "Beaucoup de ventes très comparables dans la commune même."],
   moyenne: ["Moyenne", "Assez de ventes comparables, mais moins nombreuses ou moins proches."],
   faible: ["Faible", "Peu de comparables dans la commune même : à confronter impérativement avec votre connaissance du terrain."],
   insuffisante: ["Insuffisante", "Pas assez de ventes pour avancer un chiffre honnêtement."],
 };
+
+/** « -29 % / +26 % » -- l'ecart possible, signe des deux cotes. */
+function amplitudeEnTexte(resultat) {
+  const bornes = amplitude(resultat);
+  if (!bornes) return null;
+  const signe = (n) => (n > 0 ? "+" : "\u2212") + Math.abs(n) + "\u00a0%";
+  return `${signe(bornes.bas)} / ${signe(bornes.haut)}`;
+}
 
 const LIBELLES_PALIER = {
   0: "ventes de la commune",
@@ -159,9 +172,8 @@ function construireSynthese(commune, parametres, resultat, meta) {
     lignes.push(`Prix au m² retenu : ${eurosParM2(Math.round(resultat.prixM2Median))}`);
     lignes.push(`Dispersion locale : ${eurosParM2(Math.round(resultat.prixM2Q1))}`
       + ` à ${eurosParM2(Math.round(resultat.prixM2Q3))}`);
-    lignes.push(`Fiabilité : ${LIBELLES_CONFIANCE[resultat.confiance][0].toLowerCase()}`
-      + ` (${Math.round(resultat.nEffectif)} ventes comparables retenues,`
-      + ` ${LIBELLES_PALIER[resultat.palier]})`);
+    lignes.push(`Amplitude : ${amplitudeEnTexte(resultat)} autour de l'estimation`
+      + ` (calcul appuyé sur les ${LIBELLES_PALIER[resultat.palier]})`);
     if (resultat.palier === 1) {
       lignes.push(`Dont ${resultat.nMemeCommune} vente(s) dans la commune même.`);
     }
@@ -195,7 +207,9 @@ function blocResultat(etat) {
   // commune affichée, on n'affiche RIEN plutôt qu'un montant trompeur.
   if (resultat.code && resultat.code !== etat.communeSelectionnee) return "";
 
-  const [titre, explication] = LIBELLES_CONFIANCE[resultat.confiance];
+  // Seul le conseil est encore affiche : le niveau lui-meme a cede la place a
+  // l'amplitude, qui dit la meme chose en chiffres.
+  const [, explication] = LIBELLES_CONFIANCE[resultat.confiance];
 
   if (resultat.valeur === null) {
     return `<div class="resultat refus">
@@ -235,7 +249,8 @@ function blocResultat(etat) {
        passées.</p>
     ${ajustement}
     <p class="confiance confiance-${resultat.confiance}">
-      Fiabilité&nbsp;: <strong>${titre}</strong> — ${explication}
+      Amplitude&nbsp;: <strong>${amplitudeEnTexte(resultat)}</strong> autour de
+      l'estimation — ${explication}
     </p>
     <ul class="details-calcul">
       <li>Prix au m² retenu&nbsp;: <strong>${eurosParM2(Math.round(resultat.prixM2Median))}</strong></li>

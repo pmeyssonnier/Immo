@@ -456,7 +456,10 @@ const fourchette = await page.locator(".fourchette").innerText();
 verifier(/fois sur/.test(fourchette) && (fourchette.match(/\d[\d\u202f\u00a0 ]*€/g) || []).length >= 2,
   `fourchette : ${fourchette.replace(/\s+/g, " ")}`);
 const confiance = await page.locator(".confiance").innerText();
-verifier(/Fiabilité/.test(confiance), `fiabilité : ${confiance.split("—")[0].trim()}`);
+// L'ancienne etiquette « Fiabilite : Bonne » nommait un niveau sans dire de
+// combien on pouvait se tromper. On exige desormais deux pourcentages signes.
+verifier(/Amplitude/.test(confiance) && /[−+]\s*\d+\s*%/.test(confiance),
+  `amplitude : ${confiance.split("—")[0].replace(/\s+/g, " ").trim()}`);
 const nbComparables = await page.locator(".comparables tbody tr").count();
 verifier(nbComparables > 0 && nbComparables <= 10, `${nbComparables} ventes comparables listées`);
 
@@ -485,10 +488,14 @@ if (codeVide) {
   // pas une fiabilite flatteuse.
   const refus = /Pas assez de ventes/.test(texte);
   const elargissementAnnonce = /communes limitrophes|département par tranche/.test(texte);
-  const fiabiliteProuvee = /Fiabilité\s*:\s*Faible/.test(texte);
-  const honnete = refus || (elargissementAnnonce && fiabiliteProuvee);
+  // Controle plus exigeant qu'avant : on ne se contente plus de lire le mot
+  // « Faible », on verifie que l'incertitude ANNONCEE est reellement large.
+  // Une etiquette peut rassurer a tort ; un « +47 % » non.
+  const ecartHaut = Number((texte.match(/Amplitude[^—]*?\+\s*(\d+)\s*%/) || [])[1] || 0);
+  const incertitudeAvouee = ecartHaut >= 30;
+  const honnete = refus || (elargissementAnnonce && incertitudeAvouee);
   verifier(honnete, `commune ${codeVide} (peu de ventes) : ${refus ? "refus de chiffrer"
-    : "élargissement annoncé + fiabilité faible"}`);
+    : `élargissement annoncé + amplitude avouée +${ecartHaut} %`}`);
   if (!honnete) console.log(texte.slice(0, 400));
   await page.screenshot({ path: SP + "/apercu-3-donnees-faibles.png" });
 } else {

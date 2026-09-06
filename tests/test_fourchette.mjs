@@ -27,7 +27,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-import { REGLAGES, estimer, estimerParBandes } from "../js/estimation.js";
+import { REGLAGES, amplitude, estimer, estimerParBandes } from "../js/estimation.js";
 import { chargerTout, backtester } from "../scripts/backtester.mjs";
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -214,4 +214,70 @@ test("la phrase affichée correspond à la couverture réellement calibrée", ()
   assert.ok(source.includes("COUVERTURE_ANNONCEE"),
     "js/panneau-estimation.js doit afficher REGLAGES.COUVERTURE_ANNONCEE plutôt "
     + "qu'une phrase recopiée, sinon les deux peuvent diverger");
+});
+
+
+// ---------------------------------------------------------------------------
+// L'amplitude affichee remplace l'ancienne etiquette « Fiabilite »
+// ---------------------------------------------------------------------------
+test("l'amplitude affichée correspond exactement aux montants affichés", () => {
+  // Elle est recalculee depuis la fourchette publiee, arrondi commercial
+  // compris, plutot que lue dans REGLAGES.FOURCHETTE : c'est le seul moyen que
+  // le pourcentage annonce soit celui des deux montants montres juste au-dessus.
+  const cas = [
+    estimer(entree(ventesFictives(30))),
+    estimer(entree(ventesFictives(10).concat(ventesFictives(40, { voisine: true })),
+      { palier: 1 })),
+    estimerParBandes({ surface: 100,
+      bandes: { champs: [], valeurs: [[70, 110, 400, 1500, 1900, 2400]] } }),
+  ];
+  for (const r of cas) {
+    const { bas, haut } = amplitude(r);
+    assert.equal(bas, Math.round(100 * (r.fourchette[0] / r.valeur - 1)));
+    assert.equal(haut, Math.round(100 * (r.fourchette[1] / r.valeur - 1)));
+    assert.ok(bas < 0 && haut > 0,
+      `amplitude ${bas} / ${haut} : elle doit encadrer l'estimation`);
+  }
+});
+
+
+test("le repli départemental annonce SA propre amplitude, pas celle de « faible »", () => {
+  // Le piege que ce test ferme : le repli porte l'etiquette de confiance
+  // « faible » mais utilise les coefficients « bandes », nettement plus larges.
+  // Une amplitude lue dans la table par la confiance afficherait donc -42 / +47
+  // sous une fourchette reellement calculee a -52 / +65. Le chiffre annonce
+  // contredirait les montants affiches deux lignes plus haut.
+  const bandes = estimerParBandes({ surface: 100,
+    bandes: { champs: [], valeurs: [[70, 110, 400, 1500, 1900, 2400]] } });
+  const faible = estimer(entree(
+    ventesFictives(3).concat(ventesFictives(200, { voisine: true })), { palier: 1 }));
+
+  assert.equal(bandes.confiance, faible.confiance, "les deux portent bien la même étiquette");
+  const large = amplitude(bandes);
+  const etroite = amplitude(faible);
+  assert.ok(large.haut > etroite.haut + 5 && large.bas < etroite.bas - 5,
+    `amplitudes trop proches : bandes ${large.bas}/${large.haut}, `
+    + `faible ${etroite.bas}/${etroite.haut} — le repli doit annoncer la sienne`);
+});
+
+
+test("aucune estimation chiffrée ne peut afficher une amplitude vide", () => {
+  // Un « null » ici produirait « Amplitude : null » a l'ecran.
+  const cas = [
+    estimer(entree(ventesFictives(30))),
+    estimerParBandes({ surface: 100,
+      bandes: { champs: [], valeurs: [[70, 110, 400, 1500, 1900, 2400]] } }),
+  ];
+  for (const r of cas) assert.ok(amplitude(r), "amplitude introuvable pour un cas chiffré");
+  // Et le refus, lui, n'a pas d'amplitude du tout -- c'est voulu.
+  assert.equal(amplitude(estimer(entree([]))), null);
+});
+
+
+test("l'écran n'affiche plus le mot « Fiabilité » suivi d'un niveau", () => {
+  const source = readFileSync(join(RACINE, "js", "panneau-estimation.js"), "utf8");
+  assert.ok(source.includes("Amplitude"),
+    "le panneau doit afficher l'amplitude");
+  assert.ok(!/Fiabilité&nbsp;: <strong>/.test(source),
+    "l'étiquette « Fiabilité : Bonne » doit avoir cédé la place à l'amplitude");
 });
