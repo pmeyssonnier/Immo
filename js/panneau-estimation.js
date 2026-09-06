@@ -1,6 +1,7 @@
 // Panneau de droite : fiche de la commune + estimateur + ventes comparables.
 
-import { echapper, euros, eurosParM2, etoiles, moisEnTexte, nombre, surface } from "./format.js";
+import { echapper, euros, eurosParM2, etoiles, lienStreetView, moisEnTexte, nombre, surface }
+  from "./format.js";
 import { REGLAGES, amplitude } from "./estimation.js";
 
 let racineElement = null;
@@ -239,6 +240,9 @@ function blocResultat(etat) {
   // €/m² restent les uns sous les autres.
   const comparables = resultat.comparables.length ? `
     <h3>Ventes les plus comparables</h3>
+    <p class="detail">« Street View » ouvre Google Maps à l'adresse de la vente.
+      Toutes les voies n'y sont pas photographiées&nbsp;: chemins ruraux et
+      lotissements privés y échappent souvent.</p>
     <ul class="comparables">${resultat.comparables.map((c, i) => `
       <li>
         <p class="cmp-entete">
@@ -251,9 +255,13 @@ function blocResultat(etat) {
           <strong>${euros(c.prix)}</strong>
           <span class="cmp-m2">${eurosParM2(Math.round(c.prixM2))}<em>actualisé</em></span>
         </p>
-        <p class="cmp-bien">
-          <span>${surface(c.sbati)}${c.sterr ? ` · terrain ${nombre(c.sterr)} m²` : ""}</span>
-          <button type="button" class="cmp-carte" data-comparable="${i}">Voir sur la carte</button>
+        <p class="cmp-bien">${surface(c.sbati)}${c.sterr
+          ? ` · terrain ${nombre(c.sterr)} m²` : ""}</p>
+        <p class="cmp-actions">
+          <button type="button" class="cmp-action" data-comparable="${i}">Voir sur la carte</button>
+          ${lienStreetView(c.lat, c.lon) ? `<a class="cmp-action"
+            href="${echapper(lienStreetView(c.lat, c.lon))}"
+            target="_blank" rel="noopener noreferrer">Street View</a>` : ""}
         </p>
       </li>`).join("")}</ul>` : "";
 

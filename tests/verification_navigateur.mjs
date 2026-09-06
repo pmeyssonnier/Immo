@@ -472,7 +472,7 @@ verifier(nbComparables > 0 && nbComparables <= 10, `${nbComparables} ventes comp
 const fiche = await page.evaluate(() => {
   const fiches = [...document.querySelectorAll(".comparables li")];
   const prix = fiches[0].querySelector(".cmp-chiffres strong");
-  const b = fiches[0].querySelector(".cmp-carte").getBoundingClientRect();
+  const b = fiches[0].querySelector(".cmp-action[data-comparable]").getBoundingClientRect();
   const rp = prix.getBoundingClientRect();
   const droites = fiches.map((f) => Math.round(f.querySelector(".cmp-m2").getBoundingClientRect().right));
   return {
@@ -489,6 +489,26 @@ verifier(fiche.lignesPrix <= 1.2,
   `le prix « ${fiche.prix} » tient sur une seule ligne`);
 verifier(fiche.m2Alignes,
   "les €/m² restent alignés verticalement d'une vente à l'autre");
+
+// Le lien Street View : une sortie vers un site tiers, donc a controler.
+const rue = await page.evaluate(() => {
+  const liens = [...document.querySelectorAll('.comparables a.cmp-action')];
+  const a = liens[0];
+  if (!a) return null;
+  const r = a.getBoundingClientRect();
+  return { n: liens.length, href: a.getAttribute("href"), rel: a.getAttribute("rel"),
+           cible: a.getAttribute("target"),
+           largeur: Math.round(r.width), hauteur: Math.round(r.height) };
+});
+verifier(rue && rue.n === nbComparables,
+  `un lien Street View par vente (${rue ? rue.n : 0} / ${nbComparables})`);
+verifier(rue && /^https:\/\/www\.google\.com\/maps\/@\?api=1&map_action=pano&viewpoint=4\d\.\d+,\d\.\d+$/
+  .test(rue.href), `lien Street View bien formé : ${rue ? rue.href : "aucun"}`);
+// Sans rel="noopener", la page ouverte garderait la main sur la notre.
+verifier(rue && rue.cible === "_blank" && /noopener/.test(rue.rel || ""),
+  `le lien s'ouvre dans un onglet séparé et isolé (rel="${rue ? rue.rel : ""}")`);
+verifier(rue && rue.hauteur >= 36 && rue.largeur >= 90,
+  `cible tactile « Street View » : ${rue ? rue.largeur + " × " + rue.hauteur : "—"} px`);
 
 await page.screenshot({ path: SP + "/apercu-2-estimation.png" });
 

@@ -3,8 +3,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { echapper, etoiles, eurosParM2, moisEnTexte, nombre, sansAccents, surface }
-  from "../js/format.js";
+import { echapper, etoiles, eurosParM2, lienStreetView, moisEnTexte, nombre, sansAccents,
+  surface } from "../js/format.js";
 
 // ---------------------------------------------------------------------------
 // echapper : la seule barrière entre une saisie et le HTML de la page.
@@ -96,4 +96,42 @@ test("sansAccents ne touche NI aux separateurs NI a la ponctuation", () => {
 
 test("sansAccents accepte l'absence de texte", () => {
   for (const rien of [null, undefined, ""]) assert.equal(sansAccents(rien), "");
+});
+
+
+// ---------------------------------------------------------------------------
+// lienStreetView : un lien sortant, donc a verifier de pres.
+// ---------------------------------------------------------------------------
+test("lienStreetView construit l'URL officielle de Google Maps", () => {
+  const lien = lienStreetView(43.83, 4.36);
+  assert.equal(lien,
+    "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=43.830000,4.360000");
+});
+
+test("lienStreetView garde assez de decimales pour viser la bonne facade", () => {
+  // A cette latitude, la sixieme decimale vaut environ 10 cm : deux ventes
+  // voisines de la meme rue ne doivent pas tomber sur le meme panorama.
+  const a = lienStreetView(43.831234, 4.361234);
+  const b = lienStreetView(43.831244, 4.361234);
+  assert.notEqual(a, b, "les coordonnees sont tronquées trop tôt");
+  assert.ok(a.includes("43.831234"), a);
+});
+
+test("lienStreetView refuse une vente sans position, au lieu d'un lien mort", () => {
+  // Le piege : isFinite(null) vaut TRUE en JavaScript, parce que null se
+  // convertit en 0. Une vente sans coordonnees aurait donc pointe au large du
+  // golfe de Guinee. Number.isFinite, lui, refuse null.
+  assert.equal(lienStreetView(null, 4.36), null);
+  assert.equal(lienStreetView(43.83, null), null);
+  assert.equal(lienStreetView(undefined, undefined), null);
+  assert.equal(lienStreetView(NaN, 4.36), null);
+  assert.equal(lienStreetView("43.83", "4.36"), null, "une chaîne n'est pas une position");
+});
+
+test("lienStreetView ne peut pas transporter d'injection HTML", () => {
+  // Le lien finit dans un attribut href. Comme il n'est bati que de nombres,
+  // aucun caractere dangereux ne peut y entrer -- ce test le fige.
+  const lien = lienStreetView(-43.83, -4.36);
+  assert.ok(/^https:\/\/www\.google\.com\/maps\/@\?api=1&map_action=pano&viewpoint=-?[\d.]+,-?[\d.]+$/
+    .test(lien), lien);
 });

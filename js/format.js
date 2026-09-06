@@ -61,3 +61,29 @@ export function etoiles(rapport) {
   const pleines = Math.max(1, Math.min(5, Math.round(rapport * 5)));
   return "★".repeat(pleines) + "☆".repeat(5 - pleines);
 }
+
+/**
+ * Lien Google Street View a la position exacte d'une vente.
+ *
+ * DVF geolocalise chaque mutation a la parcelle, ce qui suffit pour amener
+ * Street View devant la bonne facade. On passe donc par les coordonnees et non
+ * par l'adresse : un libelle DVF comme « 12 RUE ... » se retrouve mal, alors
+ * qu'une latitude et une longitude ne s'interpretent pas.
+ *
+ * Format officiel de l'API des URL Google Maps (map_action=pano).
+ *
+ * ATTENTION a ce que ce lien NE garantit PAS : Street View ne couvre pas toutes
+ * les voies, en particulier les chemins ruraux et les lotissements prives, tres
+ * presents sur ce territoire. Savoir a l'avance s'il existe une prise de vue
+ * demanderait l'API payante de Google. L'interface annonce donc la limite plutot
+ * que de promettre une photo.
+ *
+ * Renvoie null si la position manque, pour que l'appelant n'affiche pas de lien
+ * mort. Number.isFinite et non isFinite : le second convertit null en 0 et
+ * accepterait une vente sans coordonnees.
+ */
+export function lienStreetView(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return "https://www.google.com/maps/@?api=1&map_action=pano"
+    + `&viewpoint=${lat.toFixed(6)},${lon.toFixed(6)}`;
+}
