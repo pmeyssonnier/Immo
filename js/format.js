@@ -63,6 +63,18 @@ export function etoiles(rapport) {
 }
 
 /**
+ * Lien Google Maps -- le PLAN -- a la position exacte d'une vente.
+ *
+ * Complement de lienStreetView ci-dessous, et non doublon : le plan existe
+ * partout et montre les alentours, les acces et la vue satellite ; Street View
+ * montre la facade, quand une prise de vue existe. L'un repond a « ou est-ce ? »,
+ * l'autre a « a quoi ca ressemble ? ».
+ *
+ * Meme precaution que pour Street View sur les coordonnees absentes : voir le
+ * commentaire ci-dessous, notamment le piege de isFinite(null).
+ */
+
+/**
  * Lien Google Street View a la position exacte d'une vente.
  *
  * DVF geolocalise chaque mutation a la parcelle, ce qui suffit pour amener
@@ -82,6 +94,11 @@ export function etoiles(rapport) {
  * mort. Number.isFinite et non isFinite : le second convertit null en 0 et
  * accepterait une vente sans coordonnees.
  */
+export function lienGoogleMaps(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lon.toFixed(6)}`;
+}
+
 export function lienStreetView(lat, lon) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
   return "https://www.google.com/maps/@?api=1&map_action=pano"

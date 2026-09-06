@@ -3,8 +3,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { echapper, etoiles, eurosParM2, lienStreetView, moisEnTexte, nombre, sansAccents,
-  surface } from "../js/format.js";
+import { echapper, etoiles, eurosParM2, lienGoogleMaps, lienStreetView, moisEnTexte, nombre,
+  sansAccents, surface } from "../js/format.js";
 
 // ---------------------------------------------------------------------------
 // echapper : la seule barrière entre une saisie et le HTML de la page.
@@ -134,4 +134,29 @@ test("lienStreetView ne peut pas transporter d'injection HTML", () => {
   const lien = lienStreetView(-43.83, -4.36);
   assert.ok(/^https:\/\/www\.google\.com\/maps\/@\?api=1&map_action=pano&viewpoint=-?[\d.]+,-?[\d.]+$/
     .test(lien), lien);
+});
+
+
+test("lienGoogleMaps construit l'URL officielle de recherche par position", () => {
+  assert.equal(lienGoogleMaps(43.83, 4.36),
+    "https://www.google.com/maps/search/?api=1&query=43.830000,4.360000");
+});
+
+test("lienGoogleMaps et lienStreetView ne sont pas le meme lien", () => {
+  // Le plan existe partout ; Street View seulement la ou une prise de vue a ete
+  // faite. Les confondre priverait l'utilisateur du repli qui marche toujours.
+  const plan = lienGoogleMaps(44.01239, 4.40848);
+  const rue = lienStreetView(44.01239, 4.40848);
+  assert.notEqual(plan, rue);
+  assert.ok(plan.includes("/maps/search/"), plan);
+  assert.ok(rue.includes("map_action=pano"), rue);
+  // Meme position dans les deux : une divergence enverrait l'utilisateur ailleurs.
+  assert.ok(plan.includes("44.012390,4.408480") && rue.includes("44.012390,4.408480"));
+});
+
+test("lienGoogleMaps refuse une position absente, comme lienStreetView", () => {
+  assert.equal(lienGoogleMaps(null, 4.36), null);
+  assert.equal(lienGoogleMaps(undefined, undefined), null);
+  assert.equal(lienGoogleMaps(NaN, 4.36), null);
+  assert.equal(lienGoogleMaps("43.83", "4.36"), null);
 });

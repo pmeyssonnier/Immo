@@ -522,6 +522,29 @@ verifier(adresses.n === nbComparables && adresses.premiere,
   + `— ex. « ${adresses.premiere} »`);
 verifier(adresses.surUneLigne, "les adresses tiennent chacune sur une seule ligne");
 
+// L'adresse ouvre Google Maps. C'est le repli qui marche PARTOUT, contrairement
+// a Street View : les deux liens doivent donc coexister et viser le meme point.
+const lienAdresse = await page.evaluate(() => {
+  const fiche = document.querySelector(".comparables li");
+  const a = fiche.querySelector(".cmp-adresse a");
+  const rue = fiche.querySelector("a.cmp-action");
+  if (!a) return null;
+  const r = a.getBoundingClientRect();
+  const pos = (href) => (href.match(/(4\d\.\d+,\d\.\d+)/) || [])[1];
+  return { href: a.getAttribute("href"), rel: a.getAttribute("rel"),
+           cible: a.getAttribute("target"), hauteur: Math.round(r.height),
+           memePoint: rue ? pos(a.getAttribute("href")) === pos(rue.getAttribute("href")) : false };
+});
+verifier(lienAdresse
+  && /^https:\/\/www\.google\.com\/maps\/search\/\?api=1&query=4\d\.\d+,\d\.\d+$/
+    .test(lienAdresse.href)
+  && lienAdresse.cible === "_blank" && /noopener/.test(lienAdresse.rel || ""),
+  `l'adresse ouvre Google Maps : ${lienAdresse ? lienAdresse.href : "aucun lien"}`);
+verifier(lienAdresse && lienAdresse.memePoint,
+  "le plan et Street View visent exactement la même position");
+verifier(lienAdresse && lienAdresse.hauteur >= 20,
+  `zone tactile de l'adresse : ${lienAdresse ? lienAdresse.hauteur : 0} px de haut`);
+
 await page.screenshot({ path: SP + "/apercu-2-estimation.png" });
 
 // --- 6. cas limite : commune sans assez de ventes -------------------------
@@ -872,7 +895,16 @@ for (const [champ, valeur, quoi] of [["#surface-terrain", "-500", "terrain néga
       });
       const rue = document.querySelector(".popup-rue");
       const rr = rue ? rue.getBoundingClientRect() : null;
+      const lienAdr = adresse.querySelector("a");
       return { texte: adresse.innerText, devant,
+        adresseCliquable: !!(lienAdr
+          && /^https:\/\/www\.google\.com\/maps\/search\//.test(lienAdr.getAttribute("href"))
+          && lienAdr.getAttribute("target") === "_blank"),
+        rueAtteignable: !!(rr && (() => {
+          const el = document.elementFromPoint(
+            Math.round(rr.left + rr.width / 2), Math.round(rr.top + rr.height / 2));
+          return el && el.closest(".popup-rue");
+        })()),
         rue: rue ? { href: rue.getAttribute("href"), rel: rue.getAttribute("rel"),
           cible: rue.getAttribute("target"),
           l: Math.round(rr.width), h: Math.round(rr.height) } : null };
@@ -880,6 +912,13 @@ for (const [champ, valeur, quoi] of [["#surface-terrain", "-500", "terrain néga
     verifier(bulle && bulle.devant.every((x) => x === "bulle"),
       `téléphone : l'adresse « ${bulle ? bulle.texte : "?"} » n'est masquée par rien `
       + `(${bulle ? bulle.devant.join(", ") : "—"})`);
+    verifier(bulle && bulle.adresseCliquable,
+      "téléphone : l'adresse de la bulle ouvre Google Maps");
+    // Le bouton doit etre ATTEIGNABLE, pas seulement present : c'est le defaut
+    // deja rencontre deux fois -- un bouton qui fonctionne mais que rien ne
+    // laisse atteindre.
+    verifier(bulle && bulle.rueAtteignable,
+      "téléphone : rien ne recouvre le bouton « Voir sur Street View »");
     verifier(bulle && bulle.rue
       && /^https:\/\/www\.google\.com\/maps\/@\?api=1&map_action=pano&viewpoint=4\d\.\d+,\d\.\d+$/
         .test(bulle.rue.href)

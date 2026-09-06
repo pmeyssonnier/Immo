@@ -183,7 +183,11 @@ a { color: var(--accent); }
 }
 .popup-rue:hover { border-color: var(--accent); }
 
-/* La legende s'efface pendant qu'une bulle de vente est ouverte.
+/* Les habillages de la carte s'effacent pendant qu'une bulle de vente est
+   ouverte : la legende, mais aussi les bandeaux d'avertissement, qui recouvrent
+   sinon le bouton « Voir sur Street View » quand les tuiles ne se chargent pas.
+   Le symptome serait celui deja rencontre deux fois : un bouton qui a l'air
+   mort alors qu'il fonctionne. Ces bandeaux reviennent des la fermeture.
    Sur telephone, son fond opaque recouvrait la bulle : mesure a 390 px de
    large, 47 px masques, et la ligne « Adresse » entierement illisible.
    J'ai d'abord essaye de faire passer la bulle devant avec un z-index. Ca ne
@@ -195,8 +199,9 @@ a { color: var(--accent); }
    D'ou ce choix : la bulle est TRANSITOIRE et demandee par l'utilisateur, la
    legende est une reference permanente. La legende cede, et revient des que la
    bulle est fermee. */
-.zone-carte.bulle-ouverte .legende { opacity: 0; pointer-events: none; }
-.legende { transition: opacity .15s ease; }
+.zone-carte.bulle-ouverte .legende,
+.zone-carte.bulle-ouverte .avertissement-carte { opacity: 0; pointer-events: none; }
+.legende, .avertissement-carte { transition: opacity .15s ease; }
 
 /* --- Panneau droit : fiche commune et estimation ----------------------- */
 .entete-panneau { display: flex; align-items: flex-start; gap: 10px; }
@@ -326,6 +331,13 @@ a { color: var(--accent); }
    fournit, comme dans la bulle de la carte -- deux ecritures differentes du
    meme lieu se liraient comme deux ventes. */
 .cmp-adresse { margin-top: 2px; font-size: 12px; color: var(--encre); }
+/* L'adresse ouvre Google Maps. Elle est soulignee pour qu'on la voie comme un
+   lien, et dotee d'une zone tactile plus haute que son texte : une ligne de
+   12 px ne se vise pas au doigt. */
+.cmp-adresse a, .popup-vente dd a {
+  color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+  display: inline-block; padding: 4px 0;
+}
 .cmp-actions { display: flex; gap: 6px; margin-top: 7px; }
 /* 40 px de haut : une cible confortable pour un doigt, contre 14 px avant.
    Les deux actions se partagent la largeur, donc restent larges meme sur un
