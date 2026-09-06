@@ -1,0 +1,205 @@
+{
+ "genere_le": "2026-09-06T17:08:47.000Z",
+ "options": {
+  "taille": 60000,
+  "graine": 1
+ },
+ "exemple": 250000,
+ "annees_apprentissage": [
+  2023,
+  2024
+ ],
+ "annee_verification": 2025,
+ "n_apprentissage": 38742,
+ "n_verification": 21198,
+ "cibles": {
+  "50": {
+   "libelle": "1 fois sur 2",
+   "par_cle": {
+    "bandes": {
+     "n_apprentissage": 515,
+     "n_verification": 161,
+     "bas": 0.621141975308642,
+     "haut": 1.4452991452991453,
+     "couverture_apprentissage": 49.90291262135922,
+     "couverture_verification": 51.5527950310559,
+     "exemple_bas": 155285,
+     "exemple_haut": 361325
+    },
+    "bonne": {
+     "n_apprentissage": 23692,
+     "n_verification": 14737,
+     "bas": 0.8,
+     "haut": 1.1653636853448277,
+     "couverture_apprentissage": 50.20682086780348,
+     "couverture_verification": 50.74302775327407,
+     "exemple_bas": 200000,
+     "exemple_haut": 291341
+    },
+    "faible": {
+     "n_apprentissage": 1543,
+     "n_verification": 530,
+     "bas": 0.6909090909090909,
+     "haut": 1.292212643678161,
+     "couverture_apprentissage": 50.032404406999355,
+     "couverture_verification": 52.075471698113205,
+     "exemple_bas": 172727,
+     "exemple_haut": 323053
+    },
+    "moyenne": {
+     "n_apprentissage": 12992,
+     "n_verification": 5770,
+     "bas": 0.7352941176470589,
+     "haut": 1.2242964015151514,
+     "couverture_apprentissage": 49.992302955665025,
+     "couverture_verification": 50.346620450606586,
+     "exemple_bas": 183824,
+     "exemple_haut": 306074
+    }
+   },
+   "couverture_globale_verification": 50.6745919426361,
+   "n_jugeables": 21198
+  },
+  "67": {
+   "libelle": "2 fois sur 3",
+   "par_cle": {
+    "bandes": {
+     "n_apprentissage": 515,
+     "n_verification": 161,
+     "bas": 0.4796695652173913,
+     "haut": 1.6467233985526668,
+     "couverture_apprentissage": 66.99029126213593,
+     "couverture_verification": 67.70186335403727,
+     "exemple_bas": 119917,
+     "exemple_haut": 411681
+    },
+    "bonne": {
+     "n_apprentissage": 23692,
+     "n_verification": 14737,
+     "bas": 0.7142857142857143,
+     "haut": 1.2594592342342343,
+     "couverture_apprentissage": 67.1070403511734,
+     "couverture_verification": 66.9946393431499,
+     "exemple_bas": 178571,
+     "exemple_haut": 314865
+    },
+    "faible": {
+     "n_apprentissage": 1543,
+     "n_verification": 530,
+     "bas": 0.5816689333333334,
+     "haut": 1.4697019801980198,
+     "couverture_apprentissage": 66.94750486066106,
+     "couverture_verification": 67.16981132075472,
+     "exemple_bas": 145417,
+     "exemple_haut": 367425
+    },
+    "moyenne": {
+     "n_apprentissage": 12992,
+     "n_verification": 5770,
+     "bas": 0.625,
+     "haut": 1.370983387096774,
+     "couverture_apprentissage": 67.01816502463055,
+     "couverture_verification": 68.56152512998267,
+     "exemple_bas": 156250,
+     "exemple_haut": 342746
+    }
+   },
+   "couverture_globale_verification": 67.4308897065761,
+   "n_jugeables": 21198
+  },
+  "80": {
+   "libelle": "4 fois sur 5",
+   "par_cle": {
+    "bandes": {
+     "n_apprentissage": 515,
+     "n_verification": 161,
+     "bas": 0.3733887937362369,
+     "haut": 1.8646757123473543,
+     "couverture_apprentissage": 79.80582524271844,
+     "couverture_verification": 79.5031055900621,
+     "exemple_bas": 93347,
+     "exemple_haut": 466169
+    },
+    "bonne": {
+     "n_apprentissage": 23692,
+     "n_verification": 14737,
+     "bas": 0.6187617924528301,
+     "haut": 1.378348759718623,
+     "couverture_apprentissage": 79.99324666554111,
+     "couverture_verification": 80.3080681278415,
+     "exemple_bas": 154690,
+     "exemple_haut": 344587
+    },
+    "faible": {
+     "n_apprentissage": 1543,
+     "n_verification": 530,
+     "bas": 0.4689130434782609,
+     "haut": 1.6532413793103444,
+     "couverture_apprentissage": 79.90926766040181,
+     "couverture_verification": 81.32075471698113,
+     "exemple_bas": 117228,
+     "exemple_haut": 413310
+    },
+    "moyenne": {
+     "n_apprentissage": 12992,
+     "n_verification": 5770,
+     "bas": 0.5156414473684211,
+     "haut": 1.5390635451505015,
+     "couverture_apprentissage": 79.98768472906404,
+     "couverture_verification": 80.79722703639514,
+     "exemple_bas": 128910,
+     "exemple_haut": 384766
+    }
+   },
+   "couverture_globale_verification": 80.46042079441457,
+   "n_jugeables": 21198
+  },
+  "90": {
+   "libelle": "9 fois sur 10",
+   "par_cle": {
+    "bandes": {
+     "n_apprentissage": 515,
+     "n_verification": 161,
+     "bas": 0.29852459016393446,
+     "haut": 2.223181818181815,
+     "couverture_apprentissage": 89.90291262135922,
+     "couverture_verification": 90.6832298136646,
+     "exemple_bas": 74631,
+     "exemple_haut": 555795
+    },
+    "bonne": {
+     "n_apprentissage": 23692,
+     "n_verification": 14737,
+     "bas": 0.5101122448979591,
+     "haut": 1.5515082934609252,
+     "couverture_apprentissage": 89.99662333277055,
+     "couverture_verification": 90.23546176290968,
+     "exemple_bas": 127528,
+     "exemple_haut": 387877
+    },
+    "faible": {
+     "n_apprentissage": 1543,
+     "n_verification": 530,
+     "bas": 0.36150810137100126,
+     "haut": 1.9654099616858236,
+     "couverture_apprentissage": 89.88982501620221,
+     "couverture_verification": 92.0754716981132,
+     "exemple_bas": 90377,
+     "exemple_haut": 491352
+    },
+    "moyenne": {
+     "n_apprentissage": 12992,
+     "n_verification": 5770,
+     "bas": 0.4067410714285715,
+     "haut": 1.7899302845528453,
+     "couverture_apprentissage": 89.99384236453201,
+     "couverture_verification": 90.32928942807625,
+     "exemple_bas": 101685,
+     "exemple_haut": 447483
+    }
+   },
+   "couverture_globale_verification": 90.31040664213604,
+   "n_jugeables": 21198
+  }
+ }
+}
