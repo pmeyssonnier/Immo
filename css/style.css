@@ -274,19 +274,45 @@ a { color: var(--accent); }
   font-size: 11.5px; line-height: 1.55; color: var(--encre-douce);
 }
 
-.comparables { width: 100%; border-collapse: collapse; font-size: 12px; }
-.comparables th {
-  text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .3px;
-  color: var(--encre-douce); border-bottom: 1px solid var(--bordure); padding: 5px 4px;
+/* Ventes comparables : une FICHE par vente.
+   Le panneau fait 400 px fixes ; l'ancien tableau a six colonnes n'avait que
+   363 px, coupait « 493 400 € » en deux lignes et reduisait le lien « carte »
+   a 27 x 14 px. Les fiches ayant toutes la meme structure, les prix et les
+   €/m² restent alignes verticalement d'une fiche a l'autre. */
+.comparables {
+  list-style: none; margin: 8px 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 7px;
 }
-.comparables td {
-  padding: 6px 4px; border-bottom: 1px solid #f2f4f6; vertical-align: top;
-  font-variant-numeric: tabular-nums;
+.comparables li {
+  border: 1px solid var(--bordure); border-radius: 8px; padding: 8px 10px 9px;
+  background: #fff; font-variant-numeric: tabular-nums;
 }
+.comparables p { margin: 0; }
+.cmp-entete {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  font-size: 12px; color: var(--encre-douce);
+}
+.cmp-chiffres {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  margin-top: 2px;
+}
+.cmp-chiffres strong { font-size: 16px; }
+.cmp-m2 { font-size: 13px; color: var(--encre-douce); white-space: nowrap; text-align: right; }
+.cmp-bien {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  margin-top: 6px; font-size: 12px; color: var(--encre-douce);
+}
+/* 40 px de haut : une cible confortable pour un doigt, contre 14 px avant. */
+.cmp-carte {
+  flex: none; min-height: 40px; padding: 0 13px; cursor: pointer;
+  border: 1px solid var(--bordure); border-radius: 7px;
+  background: var(--accent-clair); color: var(--accent); font-size: 12.5px;
+}
+.cmp-carte:hover { border-color: var(--accent); }
 .comparables em {
   display: block; font-style: normal; font-size: 10.5px; color: var(--encre-douce);
 }
-.comparables .voisine { color: var(--orange); }
+.comparables .voisine { display: inline; color: var(--orange); }
 .comparables .etoiles { color: #d9a300; letter-spacing: -1px; white-space: nowrap; }
 
 /* --- Ecrans etroits ----------------------------------------------------- */

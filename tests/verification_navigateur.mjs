@@ -460,8 +460,35 @@ const confiance = await page.locator(".confiance").innerText();
 // combien on pouvait se tromper. On exige desormais deux pourcentages signes.
 verifier(/Amplitude/.test(confiance) && /[−+]\s*\d+\s*%/.test(confiance),
   `amplitude : ${confiance.split("—")[0].replace(/\s+/g, " ").trim()}`);
-const nbComparables = await page.locator(".comparables tbody tr").count();
+const nbComparables = await page.locator(".comparables li").count();
 verifier(nbComparables > 0 && nbComparables <= 10, `${nbComparables} ventes comparables listées`);
+
+// Lisibilite des fiches de ventes comparables, verifiee par la MESURE.
+//
+// L'ancien tableau a six colonnes ne disposait que de 363 px : « 493 400 € »
+// se coupait en deux lignes et le lien « carte » tombait a 27 x 14 px, quatre
+// fois moins que les 44 px recommandes pour un doigt. Ce n'etait pas un defaut
+// mobile : la mesure donnait 363 px sur ordinateur contre 354 px sur telephone.
+const fiche = await page.evaluate(() => {
+  const fiches = [...document.querySelectorAll(".comparables li")];
+  const prix = fiches[0].querySelector(".cmp-chiffres strong");
+  const b = fiches[0].querySelector(".cmp-carte").getBoundingClientRect();
+  const rp = prix.getBoundingClientRect();
+  const droites = fiches.map((f) => Math.round(f.querySelector(".cmp-m2").getBoundingClientRect().right));
+  return {
+    largeur: Math.round(b.width), hauteur: Math.round(b.height),
+    prix: prix.innerText,
+    lignesPrix: rp.height / (parseFloat(getComputedStyle(prix).fontSize) * 1.25),
+    m2Alignes: new Set(droites).size === 1,
+  };
+});
+verifier(fiche.hauteur >= 36 && fiche.largeur >= 90,
+  `cible tactile « Voir sur la carte » : ${fiche.largeur} × ${fiche.hauteur} px `
+  + "(27 × 14 px avec l'ancien tableau)");
+verifier(fiche.lignesPrix <= 1.2,
+  `le prix « ${fiche.prix} » tient sur une seule ligne`);
+verifier(fiche.m2Alignes,
+  "les €/m² restent alignés verticalement d'une vente à l'autre");
 
 await page.screenshot({ path: SP + "/apercu-2-estimation.png" });
 

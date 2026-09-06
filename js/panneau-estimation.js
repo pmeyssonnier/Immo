@@ -225,20 +225,37 @@ function blocResultat(etat) {
     ? `<p class="detail">dont ajustement terrain : ${resultat.ajustementTerrain > 0 ? "+" : ""}${euros(resultat.ajustementTerrain)}</p>`
     : "";
 
+  // Une FICHE par vente, et non plus un tableau a six colonnes.
+  //
+  // Mesure qui a motive le changement : le panneau fait 400 px de large, fixes.
+  // Le tableau ne disposait donc que de 363 px pour six colonnes -- 57 px pour le
+  // prix. « 493 400 € » se coupait en deux lignes, « 3 710 €/m² actualisé » en
+  // trois, et le lien « carte » tombait a 27 x 14 px, quatre fois moins que les
+  // 44 px recommandes pour un doigt. Le telephone n'y etait pour rien : la
+  // mesure donne 363 px sur ordinateur contre 354 px sur telephone.
+  //
+  // L'alignement vertical des chiffres, seul avantage reel du tableau, est
+  // conserve : toutes les fiches ont la meme structure, donc les prix et les
+  // €/m² restent les uns sous les autres.
   const comparables = resultat.comparables.length ? `
     <h3>Ventes les plus comparables</h3>
-    <table class="comparables">
-      <thead><tr><th>Vendue</th><th>Surface</th><th>Prix</th><th>€/m²</th><th>Proximité</th><th></th></tr></thead>
-      <tbody>${resultat.comparables.map((c, i) => `
-        <tr>
-          <td>${moisEnTexte(c.t, etat.meta.annee_origine)}${c.voisine ? '<em class="voisine">commune voisine</em>' : ""}</td>
-          <td>${surface(c.sbati)}${c.sterr ? `<em>${nombre(c.sterr)} m² terrain</em>` : ""}</td>
-          <td>${euros(c.prix)}</td>
-          <td>${eurosParM2(Math.round(c.prixM2))}<em>actualisé</em></td>
-          <td class="etoiles" title="pertinence relative">${etoiles(c.poids / resultat.comparables[0].poids)}</td>
-          <td><button type="button" class="lien" data-comparable="${i}">carte</button></td>
-        </tr>`).join("")}</tbody>
-    </table>` : "";
+    <ul class="comparables">${resultat.comparables.map((c, i) => `
+      <li>
+        <p class="cmp-entete">
+          <span>${moisEnTexte(c.t, etat.meta.annee_origine)}${c.voisine
+            ? ' <em class="voisine">commune voisine</em>' : ""}</span>
+          <span class="etoiles" title="pertinence relative">${etoiles(
+            c.poids / resultat.comparables[0].poids)}</span>
+        </p>
+        <p class="cmp-chiffres">
+          <strong>${euros(c.prix)}</strong>
+          <span class="cmp-m2">${eurosParM2(Math.round(c.prixM2))}<em>actualisé</em></span>
+        </p>
+        <p class="cmp-bien">
+          <span>${surface(c.sbati)}${c.sterr ? ` · terrain ${nombre(c.sterr)} m²` : ""}</span>
+          <button type="button" class="cmp-carte" data-comparable="${i}">Voir sur la carte</button>
+        </p>
+      </li>`).join("")}</ul>` : "";
 
   return `<div class="resultat">
     <p class="valeur-principale">${euros(resultat.valeur)}</p>
