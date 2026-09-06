@@ -175,6 +175,28 @@ a { color: var(--accent); }
 }
 .popup-vente dt { color: var(--encre-douce); }
 .popup-vente dd { margin: 0; }
+.popup-rue {
+  display: block; margin-top: 9px; min-height: 36px; line-height: 36px;
+  text-align: center; text-decoration: none; border-radius: 7px;
+  border: 1px solid var(--bordure); background: var(--accent-clair);
+  color: var(--accent); font-size: 12.5px;
+}
+.popup-rue:hover { border-color: var(--accent); }
+
+/* La legende s'efface pendant qu'une bulle de vente est ouverte.
+   Sur telephone, son fond opaque recouvrait la bulle : mesure a 390 px de
+   large, 47 px masques, et la ligne « Adresse » entierement illisible.
+   J'ai d'abord essaye de faire passer la bulle devant avec un z-index. Ca ne
+   marche pas, et la mesure l'a montre : Leaflet enferme les bulles dans
+   .leaflet-map-pane, un contexte d'empilement fixe a 400, alors que ses
+   controles sont a 1000. Aucune valeur donnee a l'interieur du conteneur ne
+   peut en sortir ; il aurait fallu remonter toute la carte au-dessus des
+   boutons de zoom.
+   D'ou ce choix : la bulle est TRANSITOIRE et demandee par l'utilisateur, la
+   legende est une reference permanente. La legende cede, et revient des que la
+   bulle est fermee. */
+.zone-carte.bulle-ouverte .legende { opacity: 0; pointer-events: none; }
+.legende { transition: opacity .15s ease; }
 
 /* --- Panneau droit : fiche commune et estimation ----------------------- */
 .entete-panneau { display: flex; align-items: flex-start; gap: 10px; }
