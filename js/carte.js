@@ -10,8 +10,8 @@
 // pas, les contours restent lisibles et l'application reste utilisable.
 
 import { CONFIG, couleurPrix } from "./config.js";
-import { echapper, euros, eurosParM2, lienStreetView, moisEnTexte, nombre, surface }
-  from "./format.js";
+import { echapper, euros, eurosParM2, lienGoogleMaps, lienStreetView, moisEnTexte, nombre,
+  surface } from "./format.js";
 
 let carte = null;
 let coucheCommunes = null;
@@ -76,7 +76,10 @@ function contenuPopup(vente) {
       <dt>Vendue</dt><dd>${moisEnTexte(vente.t, anneeOrigine)}</dd>
       <dt>Surface</dt><dd>${surface(vente.sbati)}${vente.pieces ? " · " + vente.pieces + " pièces" : ""}</dd>
       <dt>Terrain</dt><dd>${vente.sterr ? surface(vente.sterr) : "aucun"}</dd>
-      <dt>Adresse</dt><dd>${echapper(vente.adresse) || "non renseignée"}</dd>
+      <dt>Adresse</dt><dd>${lienGoogleMaps(vente.lat, vente.lon) && vente.adresse
+        ? `<a href="${echapper(lienGoogleMaps(vente.lat, vente.lon))}" target="_blank"
+             rel="noopener noreferrer">${echapper(vente.adresse)}</a>`
+        : echapper(vente.adresse) || "non renseignée"}</dd>
     </dl>
     ${lienStreetView(vente.lat, vente.lon) ? `<a class="popup-rue"
       href="${echapper(lienStreetView(vente.lat, vente.lon))}"
