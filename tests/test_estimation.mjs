@@ -142,23 +142,44 @@ test("estimation normale : valeur, fourchette et confiance coherentes", () => {
   assert.ok(bas < resultat.valeur && resultat.valeur < haut, "fourchette mal ordonnee");
 });
 
-test("la fourchette ne descend jamais sous +/-4 %", () => {
-  // 30 ventes identiques : dispersion nulle, donc IC theorique nul
-  const resultat = estimer(entree(ventesFictives(30, { prixM2: 2000 })));
-  const demi = (resultat.fourchette[1] - resultat.fourchette[0]) / 2;
-  assert.ok(demi >= 0.035 * resultat.valeur,
-    "une fourchette trop etroite donnerait une fausse impression de precision");
-});
+// Les deux tests qui vivaient ici -- « la fourchette ne descend jamais sous
+// +/-4 % » et « ne depasse jamais +/-12 % » -- gardaient des bornes posees a
+// priori dans le commit initial, jamais confrontees au reel. Le backtest a
+// mesure ce qu'elles valaient : le vrai prix tombait dans la fourchette 20,9 %
+// du temps. Les bornes ont donc disparu du moteur, remplacees par des
+// coefficients calibres, et ces deux tests avec elles.
+//
+// Ce qui les remplace est plus exigeant et vit dans tests/test_fourchette.mjs :
+// un test qui REMESURE la couverture sur des ventes reelles au lieu de verifier
+// une largeur decidee d'avance. Les controles de forme (encadrement de la
+// valeur, largeur croissante quand la fiabilite baisse) y sont aussi.
 
-test("la fourchette ne depasse jamais +/-12 %", () => {
-  const dispersees = [900, 1400, 1900, 2400, 2900, 3400, 3900, 4400, 4900, 5400,
-    1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500]
-    .map((prixM2, i) => ({ t: 68, prix: prixM2 * 100, sbati: 100, sterr: 500,
-      pieces: 4, adresse: "r" + i, voisine: false }));
-  const resultat = estimer(entree(dispersees));
-  const demi = (resultat.fourchette[1] - resultat.fourchette[0]) / 2;
-  assert.ok(demi <= 0.125 * resultat.valeur + 5000,
-    "au-dela de +/-12 % la fourchette n'aide plus personne");
+test("la fourchette dépend du niveau de fiabilité, pas de la dispersion locale", () => {
+  // Contre-epreuve du defaut repare : avec l'ancien calcul, 30 ventes
+  // identiques (dispersion nulle) et 20 ventes tres dispersees donnaient deux
+  // largeurs differentes, alors que la fiabilite annoncee etait la meme. La
+  // largeur suivait la dispersion du marche au lieu de suivre l'incertitude sur
+  // le bien.
+  const serrees = estimer(entree(ventesFictives(30, { prixM2: 2000 })));
+  // 30 ventes, comme le cas serre : la taille effective doit rester au-dessus du
+  // seuil de confiance « bonne », sinon on comparerait deux etiquettes
+  // differentes et le test ne prouverait rien.
+  const dispersees = estimer(entree(
+    [900, 1400, 1900, 2400, 2900, 3400, 3900, 4400, 4900, 5400,
+     1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500,
+     1100, 1600, 2100, 2600, 3100, 3600, 4100, 4600, 5100, 5600]
+      .map((prixM2, i) => ({ t: 68, prix: prixM2 * 100, sbati: 100, sterr: 500,
+        pieces: 4, adresse: "r" + i, voisine: false })),
+  ));
+  assert.equal(serrees.confiance, dispersees.confiance,
+    "les deux cas doivent bien porter la meme etiquette de fiabilite");
+
+  const relative = (r) => (r.fourchette[1] - r.fourchette[0]) / r.valeur;
+  // Tolerance : les bornes passent par l'arrondi commercial (pas de 5 000 EUR),
+  // ce qui suffit a ecarter deux largeurs relatives de quelques millimes.
+  assert.ok(Math.abs(relative(serrees) - relative(dispersees)) < 0.03,
+    `largeurs relatives trop differentes : ${relative(serrees).toFixed(3)} contre `
+    + `${relative(dispersees).toFixed(3)} pour une meme fiabilite`);
 });
 
 test("confiance degradee quand on a du elargir aux communes voisines", () => {

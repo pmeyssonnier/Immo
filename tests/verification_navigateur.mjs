@@ -449,7 +449,12 @@ await page.waitForSelector(".resultat", { timeout: 15000 });
 const valeur = await page.locator(".valeur-principale").innerText();
 verifier(/\d/.test(valeur), `estimation produite : ${valeur}`);
 const fourchette = await page.locator(".fourchette").innerText();
-verifier(fourchette.includes("–"), `fourchette : ${fourchette}`);
+// La fourchette n'est plus un intervalle nu : elle annonce la frequence a
+// laquelle elle est tenue. Ce controle exige les deux -- la promesse ET deux
+// montants -- parce qu'un intervalle sans sa frequence retomberait dans le
+// defaut qu'on vient de reparer.
+verifier(/fois sur/.test(fourchette) && (fourchette.match(/\d[\d\u202f\u00a0 ]*€/g) || []).length >= 2,
+  `fourchette : ${fourchette.replace(/\s+/g, " ")}`);
 const confiance = await page.locator(".confiance").innerText();
 verifier(/Fiabilité/.test(confiance), `fiabilité : ${confiance.split("—")[0].trim()}`);
 const nbComparables = await page.locator(".comparables tbody tr").count();

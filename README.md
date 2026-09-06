@@ -80,9 +80,12 @@ d'adresse — ce qui rend la carte nettement plus lisible.
 ### Ce que veulent dire les chiffres
 
 - **Estimation** : la valeur la plus probable, arrondie.
-- **Fourchette** : la marge d'incertitude *sur cette estimation*. Elle ne descend
-  jamais sous ±4 % (annoncer mieux serait une fausse précision) et ne dépasse
-  jamais ±12 %.
+- **Fourchette** : elle annonce elle-même ce qu'elle vaut — « **2 fois sur 3**, le
+  prix réel est entre X et Y ». Ce n'est pas une marge d'erreur théorique : c'est
+  une fréquence **mesurée**, en rejouant l'estimation sur des dizaines de milliers
+  de ventes passées (voir « Ce que vaut vraiment l'estimation » plus bas). Elle
+  s'élargit quand la fiabilité baisse, et elle penche légèrement vers le bas parce
+  que le moteur sur-évalue.
 - **Dispersion du marché local** : à quel point les biens de la commune sont
   hétérogènes. **Ce n'est pas la même chose que la fourchette** — c'est la
   diversité réelle des maisons du secteur.
@@ -108,6 +111,39 @@ d'adresse — ce qui rend la carte nettement plus lisible.
 
 Une estimation portée surtout par les communes voisines n'obtient **jamais** mieux
 que « fiabilité faible », même si ces voisines fournissent des centaines de ventes.
+
+### Ce que vaut vraiment l'estimation
+
+Le dépôt ne se contente pas de tester que le moteur calcule comme il a été conçu :
+il mesure s'il **tombe juste**. `scripts/backtester.mjs` rejoue l'estimation sur des
+ventes réelles en ne lui donnant que le passé — indice de prix et statistiques
+départementales recalculés année par année, vente testée retirée de ses propres
+comparables.
+
+Résultat sur 30 000 ventes de 2023-2025 (`audit/backtest/rapport.txt`) :
+
+| mesure | valeur |
+|---|---|
+| erreur absolue médiane | 20,2 % |
+| estimations à ±10 % du prix réel | 27,0 % |
+| erreur médiane selon la fiabilité annoncée | 17,9 % (bonne) / 24,7 % (moyenne) / 33,3 % (faible) |
+
+L'étiquette de fiabilité dit donc vrai : elle sépare bien les bonnes estimations des
+mauvaises. Mais 20 % d'erreur médiane reste **une aide à la décision, pas un avis de
+valeur** — c'est le plafond de ce que DVF permet, puisque DVF ignore l'état du bien.
+
+C'est cette mesure qui a servi à calibrer la fourchette. Les coefficients de
+`REGLAGES.FOURCHETTE` sont calculés sur 2023-2024 puis **vérifiés sur les 21 198
+ventes de 2025 que le calibrage n'avait jamais vues** : 67,4 % de couverture réelle
+pour 67 % promis. L'ancienne fourchette ±4 %/±12 %, elle, n'en tenait que 20,9 %.
+
+```bash
+node scripts/backtester.mjs           # l'erreur du moteur
+node scripts/calibrer_fourchette.mjs  # la largeur que la fourchette doit avoir
+```
+
+`tests/test_fourchette.mjs` remesure cette couverture à chaque exécution des tests :
+si une retouche des pondérations rendait la promesse fausse, il échoue.
 
 ---
 
@@ -202,6 +238,8 @@ détail : le rapport indique quel contrôle a échoué. Vous pouvez relancer
 ```bash
 python -m unittest discover tests     # nettoyage DVF, contours, site
 node --test tests/test_estimation.mjs # algorithme d'estimation
+node --test tests/test_fourchette.mjs # la fourchette tient-elle sa promesse ?
+node --test tests/test_backtest.mjs   # fidélité du harnais de backtest
 ```
 
 ### Vérification visuelle (facultative, demande un navigateur)
