@@ -17,6 +17,7 @@ let coucheCommunes = null;
 let groupeMarqueurs = null;
 let signatureAffichee = null;
 let bandeau = null;
+let zoneCarte = null;
 let avertissementFond = null;
 let avertissementDonnees = null;
 let communesParCode = new Map();
@@ -107,6 +108,7 @@ export function initialiser(racine, actions) {
     <div id="avertissement-fond" class="avertissement-carte" hidden></div>
     <div id="avertissement-donnees" class="avertissement-carte avertissement-panne" hidden></div>
     <div id="bandeau-carte" hidden></div>`;
+  zoneCarte = racine;
   bandeau = racine.querySelector("#bandeau-carte");
   avertissementFond = racine.querySelector("#avertissement-fond");
   avertissementDonnees = racine.querySelector("#avertissement-donnees");
@@ -176,6 +178,19 @@ export function initialiser(racine, actions) {
       carte.setView([lat, lon], zoom || Math.max(carte.getZoom(), 14));
     },
     ouvrirVente(vente) {
+      // Amener la carte SOUS LES YEUX avant d'y ouvrir quoi que ce soit.
+      //
+      // Sur telephone, la mise en page s'empile : liste, puis carte, puis
+      // panneau de droite. Quand on lit le tableau des ventes comparables et
+      // qu'on touche « carte », la carte se trouve plusieurs centaines de pixels
+      // AU-DESSUS de l'ecran. Mesure sur un ecran de 390x844 : son bord bas
+      // etait a -615 px. La popup s'ouvrait donc correctement, mais sur une
+      // carte invisible -- et le bouton passait pour mort.
+      //
+      // Sur ordinateur, l'application tient dans la fenetre sans defilement :
+      // l'appel ne fait rien. C'est donc une correction mobile qui ne coute rien
+      // ailleurs.
+      if (zoneCarte) zoneCarte.scrollIntoView({ behavior: "smooth", block: "nearest" });
       carte.setView([vente.lat, vente.lon], 17);
       L.popup({ closeButton: true })
         .setLatLng([vente.lat, vente.lon])
