@@ -510,6 +510,18 @@ verifier(rue && rue.cible === "_blank" && /noopener/.test(rue.rel || ""),
 verifier(rue && rue.hauteur >= 36 && rue.largeur >= 90,
   `cible tactile « Street View » : ${rue ? rue.largeur + " × " + rue.hauteur : "—"} px`);
 
+// L'adresse de chaque vente comparable : sans elle, impossible de situer une
+// vente autrement qu'en ouvrant la carte.
+const adresses = await page.evaluate(() => {
+  const p = [...document.querySelectorAll(".comparables .cmp-adresse")];
+  return { n: p.length, premiere: p[0] ? p[0].innerText.trim() : null,
+           surUneLigne: p.every((e) => e.getBoundingClientRect().height < 24) };
+});
+verifier(adresses.n === nbComparables && adresses.premiere,
+  `chaque vente affiche son adresse (${adresses.n} / ${nbComparables}) `
+  + `— ex. « ${adresses.premiere} »`);
+verifier(adresses.surUneLigne, "les adresses tiennent chacune sur une seule ligne");
+
 await page.screenshot({ path: SP + "/apercu-2-estimation.png" });
 
 // --- 6. cas limite : commune sans assez de ventes -------------------------

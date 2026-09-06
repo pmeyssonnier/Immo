@@ -257,6 +257,7 @@ function blocResultat(etat) {
         </p>
         <p class="cmp-bien">${surface(c.sbati)}${c.sterr
           ? ` · terrain ${nombre(c.sterr)} m²` : ""}</p>
+        ${c.adresse ? `<p class="cmp-adresse">${echapper(c.adresse)}</p>` : ""}
         <p class="cmp-actions">
           <button type="button" class="cmp-action" data-comparable="${i}">Voir sur la carte</button>
           ${lienStreetView(c.lat, c.lon) ? `<a class="cmp-action"
