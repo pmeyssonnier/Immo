@@ -510,6 +510,18 @@ verifier(rue && rue.cible === "_blank" && /noopener/.test(rue.rel || ""),
 verifier(rue && rue.hauteur >= 36 && rue.largeur >= 90,
   `cible tactile « Street View » : ${rue ? rue.largeur + " × " + rue.hauteur : "—"} px`);
 
+// L'adresse de chaque vente comparable : sans elle, impossible de situer une
+// vente autrement qu'en ouvrant la carte.
+const adresses = await page.evaluate(() => {
+  const p = [...document.querySelectorAll(".comparables .cmp-adresse")];
+  return { n: p.length, premiere: p[0] ? p[0].innerText.trim() : null,
+           surUneLigne: p.every((e) => e.getBoundingClientRect().height < 24) };
+});
+verifier(adresses.n === nbComparables && adresses.premiere,
+  `chaque vente affiche son adresse (${adresses.n} / ${nbComparables}) `
+  + `— ex. « ${adresses.premiere} »`);
+verifier(adresses.surUneLigne, "les adresses tiennent chacune sur une seule ligne");
+
 await page.screenshot({ path: SP + "/apercu-2-estimation.png" });
 
 // --- 6. cas limite : commune sans assez de ventes -------------------------
@@ -841,6 +853,40 @@ for (const [champ, valeur, quoi] of [["#surface-terrain", "-500", "terrain néga
       `téléphone : « carte » ouvre la vente ET remonte la carte à l'écran `
       + `(avant : ${Math.round(avantClic)} px, après : ${Math.round(etat.haut)}`
       + `–${Math.round(etat.bas)} px)`);
+
+    // La bulle doit etre LISIBLE, pas seulement presente.
+    //
+    // Sur telephone, le fond opaque de la legende recouvrait la bulle : 47 px
+    // masques, et la ligne « Adresse » entierement illisible. Un controle de
+    // chevauchement geometrique ne suffit pas a le voir -- deux rectangles
+    // peuvent se croiser sans que rien ne soit cache. On demande donc au
+    // navigateur quel element est REELLEMENT devant, en trois points du texte.
+    const bulle = await tel.evaluate(() => {
+      const adresse = [...document.querySelectorAll(".popup-vente dd")].pop();
+      if (!adresse) return null;
+      const r = adresse.getBoundingClientRect();
+      const devant = [0.25, 0.5, 0.75].map((f) => {
+        const el = document.elementFromPoint(
+          Math.round(r.left + f * r.width), Math.round(r.top + r.height / 2));
+        return el && el.closest(".leaflet-popup") ? "bulle" : "masqué";
+      });
+      const rue = document.querySelector(".popup-rue");
+      const rr = rue ? rue.getBoundingClientRect() : null;
+      return { texte: adresse.innerText, devant,
+        rue: rue ? { href: rue.getAttribute("href"), rel: rue.getAttribute("rel"),
+          cible: rue.getAttribute("target"),
+          l: Math.round(rr.width), h: Math.round(rr.height) } : null };
+    });
+    verifier(bulle && bulle.devant.every((x) => x === "bulle"),
+      `téléphone : l'adresse « ${bulle ? bulle.texte : "?"} » n'est masquée par rien `
+      + `(${bulle ? bulle.devant.join(", ") : "—"})`);
+    verifier(bulle && bulle.rue
+      && /^https:\/\/www\.google\.com\/maps\/@\?api=1&map_action=pano&viewpoint=4\d\.\d+,\d\.\d+$/
+        .test(bulle.rue.href)
+      && bulle.rue.cible === "_blank" && /noopener/.test(bulle.rue.rel || "")
+      && bulle.rue.h >= 34,
+      `téléphone : la bulle porte un lien Street View utilisable `
+      + `(${bulle && bulle.rue ? bulle.rue.l + " × " + bulle.rue.h + " px" : "absent"})`);
   } else {
     verifier(false, "téléphone : aucun bouton « carte » dans les comparables");
   }

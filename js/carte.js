@@ -10,7 +10,8 @@
 // pas, les contours restent lisibles et l'application reste utilisable.
 
 import { CONFIG, couleurPrix } from "./config.js";
-import { echapper, euros, eurosParM2, moisEnTexte, nombre, surface } from "./format.js";
+import { echapper, euros, eurosParM2, lienStreetView, moisEnTexte, nombre, surface }
+  from "./format.js";
 
 let carte = null;
 let coucheCommunes = null;
@@ -77,6 +78,9 @@ function contenuPopup(vente) {
       <dt>Terrain</dt><dd>${vente.sterr ? surface(vente.sterr) : "aucun"}</dd>
       <dt>Adresse</dt><dd>${echapper(vente.adresse) || "non renseignée"}</dd>
     </dl>
+    ${lienStreetView(vente.lat, vente.lon) ? `<a class="popup-rue"
+      href="${echapper(lienStreetView(vente.lat, vente.lon))}"
+      target="_blank" rel="noopener noreferrer">Voir sur Street View</a>` : ""}
   </div>`;
 }
 
@@ -128,6 +132,12 @@ export function initialiser(racine, actions) {
     preferCanvas: true,
     renderer: L.canvas({ tolerance: MARGE_CLIC }),
   });
+
+  // Une bulle ouverte efface la legende : son fond opaque recouvrait sinon la
+  // fiche de la vente sur les ecrans etroits (voir la regle CSS correspondante,
+  // qui explique pourquoi un z-index ne suffit pas).
+  carte.on("popupopen", () => zoneCarte.classList.add("bulle-ouverte"));
+  carte.on("popupclose", () => zoneCarte.classList.remove("bulle-ouverte"));
 
   const fond = L.tileLayer(CONFIG.TUILES, {
     attribution: CONFIG.ATTRIBUTION, maxZoom: CONFIG.ZOOM_MAX,
