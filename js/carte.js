@@ -10,6 +10,7 @@
 // pas, les contours restent lisibles et l'application reste utilisable.
 
 import { CONFIG, couleurPrix } from "./config.js";
+import { adresseLisible } from "./adresses.js";
 import { echapper, euros, eurosParM2, lienGoogleMaps, lienStreetView, moisEnTexte, nombre,
   surface } from "./format.js";
 
@@ -78,8 +79,8 @@ function contenuPopup(vente) {
       <dt>Terrain</dt><dd>${vente.sterr ? surface(vente.sterr) : "aucun"}</dd>
       <dt>Adresse</dt><dd>${lienGoogleMaps(vente.lat, vente.lon) && vente.adresse
         ? `<a href="${echapper(lienGoogleMaps(vente.lat, vente.lon))}" target="_blank"
-             rel="noopener noreferrer">${echapper(vente.adresse)}</a>`
-        : echapper(vente.adresse) || "non renseignée"}</dd>
+             rel="noopener noreferrer">${echapper(adresseLisible(vente.adresse))}</a>`
+        : echapper(adresseLisible(vente.adresse)) || "non renseignée"}</dd>
     </dl>
     ${lienStreetView(vente.lat, vente.lon) ? `<a class="popup-rue"
       href="${echapper(lienStreetView(vente.lat, vente.lon))}"

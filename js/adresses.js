@@ -96,6 +96,71 @@ const TROP_GENERIQUES = new Set(["grande"]);
 const MOTS_DE_VOIE = new Set(
   Object.values(ABREGES_VOIE).filter((mot) => !TROP_GENERIQUES.has(mot)));
 
+/**
+ * Variantes acceptees comme « le developpement est DEJA ECRIT juste apres ».
+ *
+ * Sans elles, « GR GRAND RUE » deviendrait « GRANDE GRAND RUE ». Ce n'est pas un
+ * cas de bord : GR est suivi de son propre developpement dans 90,5 % des cas
+ * (1 864 fois sur 2 060, relevees sur les 591 835 adresses du depot).
+ */
+const DEJA_ECRIT = {
+  grande: ["grand", "grande"],
+  "rond point": ["rond"],
+  "voie communale": ["voie"],
+  "ancien chemin": ["ancien"],
+  "ancienne route": ["ancienne", "anc"],
+  "zone artisanale": ["zone"],
+};
+
+// Numero de voirie : « 12 », « 94B », « 5128F », et les ordinaux « 1ERE », « 2E ».
+// Les inclure permet d'atteindre le type de voie qui les suit -- 1 038 adresses.
+const NUMERO_DE_TETE = /^\d+[A-Za-z]{0,3}$/;
+
+/**
+ * Adresse DVF rendue lisible : « 51 CHE DU PATY » -> « 51 CHEMIN DU PATY ».
+ *
+ * TROIS REGLES, toutes tirees d'une mesure sur les 591 835 adresses.
+ *
+ * 1. On ne developpe QUE le type de voie, c'est-a-dire le premier mot qui n'est
+ *    pas un numero. Un remplacement partout abimerait 2 438 adresses ou une
+ *    abreviation apparait sans en etre une : « 5938 MAUX PAS » est un lieu-dit,
+ *    pas un passage, et le « VC 249 » final de « 29 IMP DES FLEURS VC 249 » est
+ *    un numero de voie communale, pas un type.
+ *
+ * 2. Quand DVF a deja ecrit le developpement juste apres, on RETIRE
+ *    l'abreviation au lieu de la developper : « GR GRAND RUE » donne « GRAND
+ *    RUE » et non « GRANDE GRAND RUE ». Voir DEJA_ECRIT.
+ *
+ * 3. Tout ce qui n'est pas reconnu reste INTACT. C'est la regle par defaut :
+ *    lieux-dits (« LE MAS DES VIGNES »), abreviations hors table (« QRT »),
+ *    libelles purement numeriques de l'annuaire (« 1075 »).
+ *
+ * On garde les MAJUSCULES. DVF n'a pas d'accents -- « RUE DE L'EPERON », jamais
+ * « EPERON » accentue --, si bien qu'une mise en casse normale donnerait « Rue
+ * de l'Eperon », de la prose francaise a laquelle il manque ses accents. En
+ * capitales, leur absence est normale.
+ *
+ * La table ABREGES_VOIE est celle de la RECHERCHE, reutilisee telle quelle : ses
+ * valeurs sont en minuscules sans accents, ce qui, passe en capitales, donne
+ * exactement la forme voulue. Une seconde table pourrait diverger de celle-ci.
+ */
+export function adresseLisible(adresse) {
+  const texte = (adresse || "").trim();
+  if (!texte) return "";
+  const mots = texte.split(/\s+/);
+  let i = 0;
+  while (i < mots.length && NUMERO_DE_TETE.test(mots[i])) i += 1;
+  if (i >= mots.length) return texte;
+
+  const developpe = ABREGES_VOIE[mots[i].toLowerCase()];
+  if (!developpe) return texte;
+
+  const suivant = (mots[i + 1] || "").toLowerCase();
+  const variantes = DEJA_ECRIT[developpe] || [developpe];
+  const remplacement = variantes.includes(suivant) ? [] : developpe.toUpperCase().split(" ");
+  return [...mots.slice(0, i), ...remplacement, ...mots.slice(i + 1)].join(" ");
+}
+
 export const LIMITE_ADRESSES = 200;
 
 /**
