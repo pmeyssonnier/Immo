@@ -3,6 +3,7 @@
 import { echapper, euros, eurosParM2, etoiles, lienGoogleMaps, lienStreetView, moisEnTexte,
   nombre, surface } from "./format.js";
 import { REGLAGES, amplitude } from "./estimation.js";
+import { adresseLisible } from "./adresses.js";
 
 let racineElement = null;
 let actionsElement = null;
@@ -259,8 +260,8 @@ function blocResultat(etat) {
           ? ` · terrain ${nombre(c.sterr)} m²` : ""}</p>
         ${c.adresse ? `<p class="cmp-adresse">${lienGoogleMaps(c.lat, c.lon)
           ? `<a href="${echapper(lienGoogleMaps(c.lat, c.lon))}" target="_blank"
-               rel="noopener noreferrer">${echapper(c.adresse)}</a>`
-          : echapper(c.adresse)}</p>` : ""}
+               rel="noopener noreferrer">${echapper(adresseLisible(c.adresse))}</a>`
+          : echapper(adresseLisible(c.adresse))}</p>` : ""}
         <p class="cmp-actions">
           <button type="button" class="cmp-action" data-comparable="${i}">Voir sur la carte</button>
           ${lienStreetView(c.lat, c.lon) ? `<a class="cmp-action"

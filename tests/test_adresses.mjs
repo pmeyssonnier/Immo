@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-import { chercherVentes, chercherVoies, indexerVoies, normaliserAdresse,
+import { adresseLisible, chercherVentes, chercherVoies, indexerVoies, normaliserAdresse,
          ressembleAUneAdresse, LIMITE_ADRESSES } from "../js/adresses.js";
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -236,4 +236,94 @@ test("l'annuaire ne cite que des communes connues", () => {
   for (const { commune } of chercherVoies(VOIES, "rue de la République", PAR_CODE)) {
     assert.ok(PAR_CODE.has(commune.code), "code de commune inconnu dans l'annuaire");
   }
+});
+
+
+// ---------------------------------------------------------------------------
+// adresseLisible : developper les abreviations POUR L'AFFICHAGE.
+//
+// A ne pas confondre avec normaliserAdresse, juste au-dessus, qui sert a
+// COMPARER : celle-la detruit accents, apostrophes et espaces, et developpe deux
+// fois quand DVF a deja ecrit le mot -- ce qui est voulu pour chercher, et
+// interdit pour afficher.
+//
+// Chaque cas ci-dessous vient d'un releve sur les 591 835 adresses du depot,
+// pas d'une intuition.
+// ---------------------------------------------------------------------------
+test("adresseLisible developpe le type de voie", () => {
+  assert.equal(adresseLisible("51 CHE DU PATY"), "51 CHEMIN DU PATY");
+  assert.equal(adresseLisible("94B RTE DE SAUVE"), "94B ROUTE DE SAUVE");
+  assert.equal(adresseLisible("12 AV JEAN JAURES"), "12 AVENUE JEAN JAURES");
+  assert.equal(adresseLisible("5128F VC CARRAIRE DE LA BELLE"),
+               "5128F VOIE COMMUNALE CARRAIRE DE LA BELLE");
+});
+
+test("adresseLisible ne touche QUE le type de voie", () => {
+  // 2 438 adresses contiennent une abreviation ailleurs qu'en tete, ou elle
+  // n'en est pas une. Un remplacement partout les abimerait toutes.
+  assert.equal(adresseLisible("5938 MAUX PAS"), "5938 MAUX PAS",
+    "« PAS » est ici un lieu-dit, pas un passage");
+  assert.equal(adresseLisible("29 IMP DES FLEURS VC 249"),
+               "29 IMPASSE DES FLEURS VC 249",
+    "le « VC 249 » final est un numero de voie communale, pas un type de voie");
+  assert.equal(adresseLisible("7A RUE LE HAM DU CHAT VERT"), "7A RUE LE HAM DU CHAT VERT");
+});
+
+test("adresseLisible RETIRE l'abreviation quand DVF a deja ecrit le mot", () => {
+  // Le cas majeur : GR est suivi de son propre developpement 1 864 fois sur
+  // 2 060 (90,5 %). Le developper donnerait « GRANDE GRAND RUE ».
+  assert.equal(adresseLisible("5286 GR GRAND RUE"), "5286 GRAND RUE");
+  assert.equal(adresseLisible("GR GRANDE RUE"), "GRANDE RUE");
+  assert.equal(adresseLisible("ACH ANCIEN CHEMIN DE SALERNES"), "ANCIEN CHEMIN DE SALERNES");
+  assert.equal(adresseLisible("2346 VC VOIE COMMUNALE N 2"), "2346 VOIE COMMUNALE N 2");
+  // Mais GR sans developpement doit bien etre developpe.
+  assert.equal(adresseLisible("GR RUE DE LA REPUBLIQUE"), "GRANDE RUE DE LA REPUBLIQUE");
+});
+
+test("adresseLisible compare des MOTS ENTIERS, pas des prefixes", () => {
+  // Piege trouve en mesurant : une premiere version comparait les debuts de
+  // mots et prenait « COUREOU » pour « COURS ». C'est un nom provencal.
+  assert.equal(adresseLisible("8 CRS COUREOU DA BANCA"), "8 COURS COUREOU DA BANCA");
+});
+
+test("adresseLisible laisse INTACT tout ce qu'elle ne reconnait pas", () => {
+  // C'est la regle par defaut, pas une exception : 15,6 % des adresses sont des
+  // lieux-dits, et l'annuaire des voies contient des libelles purement
+  // numeriques et des abreviations hors table.
+  for (const tel_quel of ["LE MAS DES VIGNES", "LES HAUTS DE NIMES", "10E QRT DES VIDELAS",
+                          "1075", "SAINT JEAN DU GARD", "LA REGAGNADE - LA FONTAINE"]) {
+    assert.equal(adresseLisible(tel_quel), tel_quel);
+  }
+});
+
+test("adresseLisible franchit le numero de voirie, suffixe et ordinal compris", () => {
+  assert.equal(adresseLisible("1ERE IMP DU PETIT FOUR"), "1ERE IMPASSE DU PETIT FOUR");
+  assert.equal(adresseLisible("2E RTE DE TOULON"), "2E ROUTE DE TOULON");
+  assert.equal(adresseLisible("94B RTE DE SAUVE"), "94B ROUTE DE SAUVE");
+});
+
+test("adresseLisible ne renvoie jamais undefined a l'ecran", () => {
+  for (const rien of ["", "   ", null, undefined]) assert.equal(adresseLisible(rien), "");
+});
+
+test("adresseLisible garde les MAJUSCULES et n'invente pas d'accent", () => {
+  // DVF est sans accents : « RUE DE L'EPERON », jamais « EPERON » accentue. Une
+  // mise en casse normale donnerait « Rue de l'Eperon », de la prose francaise a
+  // laquelle il manque ses accents. En capitales, leur absence est normale.
+  const sortie = adresseLisible("24 RUE DE L'EPERON");
+  assert.equal(sortie, "24 RUE DE L'EPERON");
+  assert.ok(!/[éèêàçùôî]/.test(adresseLisible("11 ALL DES PINS")),
+            "aucun accent ne doit apparaitre dans une adresse en capitales");
+  assert.equal(adresseLisible("11 ALL DES PINS"), "11 ALLEE DES PINS");
+});
+
+test("adresseLisible ne change RIEN a la recherche", () => {
+  // La table est partagee avec normaliserAdresse. Ce test fige le fait que les
+  // deux fonctions restent independantes : l'affichage ne developpe qu'une fois,
+  // la recherche developpe des deux cotes, y compris deux fois.
+  assert.equal(normaliserAdresse("ACH ANCIEN CHEMIN DE SALERNES").colle,
+               "anciencheminancienchemindesalernes",
+               "la double expansion reste le comportement voulu cote recherche");
+  assert.equal(normaliserAdresse("CHE DE RUSSAN").colle,
+               normaliserAdresse("chemin de russan").colle);
 });

@@ -522,6 +522,41 @@ verifier(adresses.n === nbComparables && adresses.premiere,
   + `— ex. « ${adresses.premiere} »`);
 verifier(adresses.surUneLigne, "les adresses tiennent chacune sur une seule ligne");
 
+// Plus aucune abreviation DVF en tete d'une adresse affichee.
+const abrege = await page.evaluate(() => {
+  const ABREV = /^(CHE|CHEM|CAMI|RTE|AV|AVE|IMP|ALL|LOT|BD|BLD|PL|RES|MTE|TRA|CRS|RLE|HAM|QUA|SEN|PAS|SQ|TSSE|DOM|VLA|CHS|COR|CAR|CAE|PTE|CTRE|ACH|ART|RPT|VC|ZA|GR)$/;
+  const restants = [];
+  for (const el of document.querySelectorAll(".comparables .cmp-adresse")) {
+    const tete = el.innerText.trim().split(/\s+/)
+      .find((mot) => !/^\d+[A-Za-z]{0,3}$/.test(mot));
+    if (tete && ABREV.test(tete)) restants.push(el.innerText.trim());
+  }
+  return restants;
+});
+verifier(abrege.length === 0,
+  abrege.length ? `abréviations non développées : ${abrege.join(", ")}`
+                : "aucune abréviation DVF ne subsiste en tête d'adresse");
+
+// L'adresse la PLUS LONGUE du jeu de donnees doit encore tenir sur une ligne.
+// Mesure prealable : le developpement fait passer le maximum de 36 a 47
+// caracteres. On ne le suppose pas -- on pose la vraie chaine dans le vrai
+// contexte et on mesure sa hauteur.
+const pire = await page.evaluate(() => {
+  const modele = document.querySelector(".comparables .cmp-adresse");
+  if (!modele) return null;
+  const sonde = modele.cloneNode(true);
+  const lien = sonde.querySelector("a") || sonde;
+  lien.textContent = "5128F VOIE COMMUNALE CARRAIRE DE LA BELLE DE MA";
+  modele.parentNode.insertBefore(sonde, modele.nextSibling);
+  const h = sonde.getBoundingClientRect().height;
+  const w = sonde.getBoundingClientRect().width;
+  sonde.remove();
+  return { hauteur: Math.round(h), largeur: Math.round(w) };
+});
+verifier(pire && pire.hauteur < 24,
+  `l'adresse la plus longue (47 caractères) tient sur une ligne `
+  + `(${pire ? pire.hauteur : "?"} px de haut dans ${pire ? pire.largeur : "?"} px de large)`);
+
 // L'adresse ouvre Google Maps. C'est le repli qui marche PARTOUT, contrairement
 // a Street View : les deux liens doivent donc coexister et viser le meme point.
 const lienAdresse = await page.evaluate(() => {

@@ -4,7 +4,8 @@ import { CONFIG, nomDepartement } from "./config.js";
 import { echapper, euros, eurosParM2, moisEnTexte, nombre, surface } from "./format.js";
 import { couleurPrix } from "./config.js";
 import { chercher, indexerCommunes, LIMITE_RESULTATS } from "./recherche.js";
-import { chercherVentes, chercherVoies, ressembleAUneAdresse } from "./adresses.js";
+import { adresseLisible, chercherVentes, chercherVoies, ressembleAUneAdresse }
+  from "./adresses.js";
 
 let champRecherche = null;
 let conteneurListe = null;
@@ -113,7 +114,7 @@ function ligneVente(commune, vente, indice, seuils, anneeOrigine) {
   const prixM2 = vente.sbati ? Math.round(vente.prix / vente.sbati) : null;
   return `<li data-code="${echapper(commune.code)}" data-vente="${indice}" tabindex="0">
     <span class="pastille" style="background:${couleurPrix(prixM2, seuils)}"></span>
-    <span class="nom">${echapper(vente.adresse || "adresse non renseignée")}</span>
+    <span class="nom">${echapper(adresseLisible(vente.adresse) || "adresse non renseignée")}</span>
     <span class="dep-resultat">${echapper(moisEnTexte(vente.t, anneeOrigine))}
       · ${surface(vente.sbati)}</span>
     <span class="stats">${euros(vente.prix)}<em>${prixM2 === null ? "—" : eurosParM2(prixM2)}</em></span>
@@ -124,7 +125,7 @@ function ligneVente(commune, vente, indice, seuils, anneeOrigine) {
 function ligneVoie(voie, commune, seuils) {
   return `<li data-code="${echapper(commune.code)}" tabindex="0">
     <span class="pastille" style="background:${couleurPrix(commune.m2_med, seuils)}"></span>
-    <span class="nom">${echapper(voie)}</span>
+    <span class="nom">${echapper(adresseLisible(voie))}</span>
     <span class="dep-resultat">${echapper(commune.nom)}
       · ${echapper(nomDepartement(commune.dep))}</span>
     <span class="stats"><em>${nombre(commune.n)} vente${commune.n > 1 ? "s" : ""}</em></span>
