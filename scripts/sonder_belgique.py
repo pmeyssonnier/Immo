@@ -344,14 +344,17 @@ def lire_tableau(corps, nom):
             colonnes = next(lecteur)
         except StopIteration:
             continue
-        lignes = []
-        for i, ligne in enumerate(lecteur):
-            lignes.append(ligne)
-            if i > 400000:
-                break
+        # On garde un echantillon en memoire mais on compte TOUT : le rapport
+        # precedent affichait « 400 002 lignes », qui etait mon propre plafond
+        # et non le contenu du fichier.
+        lignes, total = [], 0
+        for ligne in lecteur:
+            total += 1
+            if len(lignes) < 600000:
+                lignes.append(ligne)
         resultats.append({"membre": nom_membre, "separateur": separateur,
                           "colonnes": colonnes, "lignes": lignes,
-                          "octets": len(brut)})
+                          "total": total, "octets": len(brut)})
     return resultats
 
 
@@ -361,7 +364,11 @@ def decrire_tableau(tableau):
     lignes = tableau["lignes"]
     journal("      membre        : %s  (%s, separateur « %s »)"
             % (tableau["membre"], taille(tableau["octets"]), tableau["separateur"]))
-    journal("      lignes        : %s" % format(len(lignes), ",d").replace(",", " "))
+    journal("      lignes        : %s%s"
+            % (format(tableau.get("total", len(lignes)), ",d").replace(",", " "),
+               "" if tableau.get("total", 0) <= len(lignes)
+               else " (echantillon de %s en memoire)"
+                    % format(len(lignes), ",d").replace(",", " ")))
     journal("      colonnes (%d)  : %s" % (len(colonnes), ", ".join(colonnes[:14])))
     if len(colonnes) > 14:
         journal("                      … et %d autres" % (len(colonnes) - 14))
@@ -388,7 +395,20 @@ def decrire_tableau(tableau):
 
 
 def codes_de_commune(colonnes, lignes):
-    """Extrait l'ensemble des codes NIS/REFNIS presents dans un tableau."""
+    """Extrait l'ensemble des codes de commune presents dans un tableau.
+
+    Statbel ne publie pas de colonne « commune » dans le fichier des ventes par
+    secteur : le code de commune est les CINQ PREMIERS caracteres du code de
+    secteur (« 11001A00- » -> commune 11001). La premiere version cherchait une
+    colonne REFNIS, n'en trouvait pas, et le raccord restait donc impossible a
+    mesurer alors que l'information etait la.
+    """
+    for i, nom in enumerate(colonnes):
+        if re.search(r"stat_?sector|cd_sector", nom, re.I):
+            codes = {l[i].strip()[:5] for l in lignes if i < len(l) and l[i].strip()}
+            codes = {c for c in codes if re.fullmatch(r"\d{5}", c)}
+            if codes:
+                return nom + " (5 premiers caracteres)", codes
     for i, nom in enumerate(colonnes):
         if re.search(r"refnis|nis[_ ]?code|cd_munty|cd_refnis|^nis$|munty", nom, re.I):
             codes = {l[i].strip() for l in lignes if i < len(l) and l[i].strip()}
@@ -558,7 +578,8 @@ def couverture(colonnes, lignes):
     journal("=" * 74)
     icode = imed = inb = None
     for i, nom in enumerate(colonnes):
-        if icode is None and re.search(r"refnis|cd_munty|nis[_ ]?code", nom, re.I):
+        if icode is None and re.search(r"stat_?sector|cd_sector|refnis|cd_munty|nis[_ ]?code",
+                                       nom, re.I):
             icode = i
         if imed is None and re.search(r"median|mediaan|mediane|p50", nom, re.I):
             imed = i
@@ -723,7 +744,9 @@ def main():
         journal("=" * 74)
         journal("DECOUVERTE — la geometrie des communes")
         journal("=" * 74)
-        liens_geo = explorer(PAGES_GEOMETRIE, LIEN_GEOMETRIE, vues)
+        # Ses propres URL vues : le catalogue sert aux DEUX passes, et le
+        # partager empechait la geometrie d'etre decouverte du tout.
+        liens_geo = explorer(PAGES_GEOMETRIE, LIEN_GEOMETRIE, set())
         # Un seul, en degres si possible : 4326 plutot que le Lambert 31370.
         liens_geo.sort(key=lambda u: (0 if "4326" in u or "3812" in u else 1, len(u)))
         for lien in liens_geo[:1]:
