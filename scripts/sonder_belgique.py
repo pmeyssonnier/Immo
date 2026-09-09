@@ -226,6 +226,13 @@ def taille(octets):
 # budget sur la geometrie et n'a jamais ouvert un fichier de ventes. Les
 # statistiques passent donc devant.
 PAGES = [
+    # URL RELEVEE par recherche, pas devinee -- les deux que j'avais devinees
+    # ont repondu 404. Le catalogue Statbel charge ses liens en JavaScript, si
+    # bien qu'aucune exploration de la page d'accueil ne les fait apparaitre.
+    ("Statbel — ventes de biens immobiliers en Belgique (fiche)",
+     "https://statbel.fgov.be/fr/open-data/ventes-de-biens-immobiliers-belgique"),
+    ("Statbel — open data, categorie logement",
+     "https://statbel.fgov.be/fr/open-data?category=211"),
     ("Statbel — ventes par secteur statistique (fiche)",
      "https://statbel.fgov.be/en/open-data/real-estate-sales-according-nature-property-deed-sale-statistical-sectors-nis7-and-nis9"),
     ("Statbel — catalogue open data",
