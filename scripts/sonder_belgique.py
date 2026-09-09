@@ -226,8 +226,6 @@ def taille(octets):
 # budget sur la geometrie et n'a jamais ouvert un fichier de ventes. Les
 # statistiques passent donc devant.
 PAGES = [
-    ("Statbel — ventes par COMMUNE (fiche)",
-     "https://statbel.fgov.be/fr/open-data/ventes-de-biens-immobiliers-selon-la-nature-du-bien-dans-lacte-de-vente"),
     ("Statbel — ventes par secteur statistique (fiche)",
      "https://statbel.fgov.be/en/open-data/real-estate-sales-according-nature-property-deed-sale-statistical-sectors-nis7-and-nis9"),
     ("Statbel — catalogue open data",
@@ -256,6 +254,35 @@ LIEN_VENTES = re.compile(r"immo|onroerend|vastgoed|verkoop|vente|transacti", re.
 LIEN_GEOMETRIE = re.compile(r"sector|secteur|munty|commune|gemeente", re.I)
 # Un seul format par jeu : le geojson se lit sans outil, sqlite et shp non.
 FORMAT_INUTILE = re.compile(r"\.(sqlite|shp|dbf|prj)\.zip$|\.sqlite$|\.shp$", re.I)
+
+
+def extraire_pages(base, corps, sujet):
+    """Les liens vers des PAGES de jeux de donnees, pas vers des fichiers.
+
+    Le catalogue Statbel ne pointe pas directement des .zip : il liste des
+    fiches. Mon extracteur n'acceptant que ce qui porte une extension, il
+    trouvait « aucun lien » sur le catalogue et la fiche par commune restait
+    introuvable. Il faut donc descendre d'un cran : catalogue -> fiches ->
+    fichiers.
+    """
+    texte = corps.decode("utf-8", "replace")
+    racine = re.match(r"https?://[^/]+", base)
+    racine = racine.group(0) if racine else ""
+    vus, sortie = set(), []
+    for brut in re.findall(r'href="([^"]+)"', texte):
+        lien = brut.replace("&amp;", "&")
+        if LIEN_UTILE.search(lien) or lien.startswith("#") or "javascript" in lien:
+            continue
+        if not re.search(r"/open-data/", lien):
+            continue
+        if not sujet.search(lien):
+            continue
+        if lien.startswith("/"):
+            lien = racine + lien
+        if lien.startswith("http") and lien not in vus:
+            vus.add(lien)
+            sortie.append(lien)
+    return sortie
 
 
 def extraire_liens(base, corps, sujet):
@@ -727,8 +754,23 @@ def explorer(pages, sujet, deja_vues):
         journal()
         journal("  %s" % nom)
         if not liens:
-            journal("      aucun lien de telechargement repere")
-            continue
+            # Pas de fichier ici : peut-etre des fiches. On descend d'un cran.
+            fiches = extraire_pages(url, reponse["corps"], sujet)
+            if not fiches:
+                journal("      aucun lien de telechargement ni fiche reperes")
+                continue
+            journal("      aucun fichier ici, mais %d fiche(s) — on descend d'un cran"
+                    % len(fiches))
+            for fiche in fiches[:6]:
+                journal("        %s" % fiche[-92:])
+                sous = lire_url(fiche, delai=45)
+                if sous["statut"] != 200:
+                    continue
+                for lien in extraire_liens(fiche, sous["corps"], sujet):
+                    journal("            %s" % lien[-88:])
+                    liens.append(lien)
+            if not liens:
+                continue
         for lien in liens[:5]:
             journal("      %s" % lien[-96:])
         if len(liens) > 5:
