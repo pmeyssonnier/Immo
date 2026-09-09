@@ -31,8 +31,9 @@ jobs:
 
       - name: Modules JavaScript purs (estimation, recherche, mise en forme)
         # Les fichiers sont listés un par un : « node --test tests/ » ramasserait
-        # aussi verification_navigateur.mjs, qui exige un navigateur et
-        # playwright-core, absents du serveur d'intégration.
+        # aussi verification_navigateur.mjs, qui n'est pas un test « node --test »
+        # et qui a besoin d'un navigateur et d'un serveur. Il tourne dans le job
+        # « navigateur » ci-dessous, avec ce qu'il lui faut.
         #
         # Cette liste explicite a un défaut : un fichier de tests ajouté au dépôt
         # n'est jamais lancé tant que personne ne pense à l'inscrire ici. C'est
@@ -50,3 +51,105 @@ jobs:
           tests/test_demandes.mjs
           tests/test_backtest.mjs
           tests/test_fourchette.mjs
+
+  # ------------------------------------------------------------------------
+  # Le seul test qui regarde la page COMME UN UTILISATEUR LA VOIT.
+  #
+  # Les 130 tests ci-dessus interrogent le DOM et les modules ; aucun ne peut
+  # voir qu'un element est RECOUVERT par un autre. Les trois defauts trouves le
+  # 9 septembre avaient exactement cette forme -- une bulle ouverte hors de
+  # l'ecran, une legende opaque par-dessus une adresse, un bandeau par-dessus un
+  # bouton --, et les 130 tests etaient au vert pendant ce temps.
+  #
+  # Job SEPARE, et non une etape de plus : il dure environ 95 s, contre
+  # timeout-minutes: 10 partages pour tout le reste. Separe, il tourne en
+  # parallele, et un echec navigateur n'empeche pas de voir lequel des tests
+  # unitaires a lache.
+  #
+  # Il BLOQUE, volontairement. Le passer en continue-on-error en ferait une
+  # decoration, alors que son interet est justement d'arreter un push qui casse
+  # l'affichage.
+  # ------------------------------------------------------------------------
+  navigateur:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Récupérer le code
+        run: |
+          git clone --depth 1 --branch "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" .
+          echo "node : $(node --version)"
+
+      - name: Installer playwright-core
+        # Version EPINGLEE. Le depot n'a pas de package.json (il est dans
+        # .gitignore), donc ni npm ci ni lockfile : sans numero explicite, la CI
+        # installerait la derniere version publiee et le test changerait de
+        # comportement sans qu'aucun commit ne l'explique.
+        # --no-save : rien a enregistrer, il n'y a pas de manifeste.
+        run: npm install --no-save playwright-core@1.63.0
+
+      - name: Trouver un navigateur
+        # CHROME est OBLIGATOIRE : le chemin par defaut du test est celui d'un
+        # poste de developpement et n'existe pas ici. On cherche donc, et on
+        # echoue bruyamment si rien ne repond -- plutot que de laisser le test
+        # planter sur un fichier absent, ce qui se lirait comme un bug du site.
+        run: |
+          for candidat in "$(command -v google-chrome || true)" \
+                          "$(command -v google-chrome-stable || true)" \
+                          "$(command -v chromium || true)" \
+                          "$(command -v chromium-browser || true)"; do
+            if [ -n "$candidat" ] && [ -x "$candidat" ]; then
+              echo "CHROME=$candidat" >> "$GITHUB_ENV"
+              echo "navigateur trouvé : $candidat ($("$candidat" --version 2>&1 | head -1))"
+              exit 0
+            fi
+          done
+          echo "Aucun navigateur préinstallé ; téléchargement par Playwright."
+          node node_modules/playwright-core/cli.js install chromium
+          CHEMIN="$(node -e "console.log(require('playwright-core').chromium.executablePath())")"
+          [ -x "$CHEMIN" ] || { echo "::error::aucun navigateur utilisable"; exit 1; }
+          echo "CHROME=$CHEMIN" >> "$GITHUB_ENV"
+          echo "navigateur téléchargé : $CHEMIN"
+
+      - name: Vérification navigateur
+        # Le serveur est lance DANS CETTE ETAPE, pas dans une precedente : chaque
+        # etape a son propre shell, et je prefere ne pas parier sur la survie
+        # d'un processus d'arriere-plan entre deux d'entre elles.
+        #
+        # L'attente qui suit n'est pas une precaution de style : sans elle, le
+        # test part avant que le serveur ecoute et echoue au hasard. Un test
+        # d'integration instable finit desactive, donc on ne laisse pas la course
+        # s'installer.
+        #
+        # SORTIE pointe hors du depot : le test ecrit quatre captures, et
+        # .gitignore n'a aucune regle sur les PNG. Le script ne cree pas le
+        # dossier, d'ou le mkdir.
+        run: |
+          python3 -m http.server 8321 >/dev/null 2>&1 &
+          SERVEUR=$!
+          trap 'kill $SERVEUR 2>/dev/null || true' EXIT
+          pret=""
+          for essai in $(seq 1 40); do
+            if curl -sf -o /dev/null http://localhost:8321/index.html; then
+              echo "serveur prêt après $essai tentative(s)"
+              pret=oui
+              break
+            fi
+            sleep 0.5
+          done
+          if [ -z "$pret" ]; then
+            echo "::error::le serveur local n'a jamais répondu"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/captures"
+          SORTIE="$RUNNER_TEMP/captures" node tests/verification_navigateur.mjs
+
+      - name: Vérifier que le dépôt est resté propre
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::le test a laissé des fichiers dans le dépôt"
+            git status --porcelain
+            exit 1
+          fi
+          echo "dépôt intact, comme prévu."
