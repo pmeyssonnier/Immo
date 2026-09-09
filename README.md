@@ -246,12 +246,25 @@ node --test tests/test_fourchette.mjs # la fourchette tient-elle sa promesse ?
 node --test tests/test_backtest.mjs   # fidélité du harnais de backtest
 ```
 
-### Vérification visuelle (facultative, demande un navigateur)
+### Vérification visuelle dans un vrai navigateur
+
+C'est le seul test qui regarde la page **comme un utilisateur la voit** : il vérifie
+non pas qu'un élément existe, mais qu'il est réellement **visible et atteignable**.
+Les tests ci-dessus ne peuvent pas voir qu'un bouton est recouvert par autre chose.
+
+Il tourne automatiquement à chaque modification (job « navigateur » de
+`.github/workflows/tests.yml`). Pour le lancer à la main :
+
 ```bash
 npm install playwright-core
 python3 -m http.server 8321 &
-node tests/verification_navigateur.mjs
+CHROME=$(command -v google-chrome || command -v chromium) \
+  SORTIE=/tmp node tests/verification_navigateur.mjs
 ```
+
+`CHROME` est obligatoire — `playwright-core` n'embarque aucun navigateur.
+`SORTIE` dit où déposer les captures d'écran ; sans lui, elles atterrissent
+dans le dossier courant.
 
 ---
 
