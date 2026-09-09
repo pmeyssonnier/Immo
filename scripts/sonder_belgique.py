@@ -124,6 +124,38 @@ def lire_url(url, delai=DELAI):
                 "duree": time.time() - debut, "url": url}
 
 
+def sonder_entetes(url, delai=45):
+    """Interroge une URL en HEAD : accessible ? quel poids ? SANS telecharger.
+
+    Correction d'un defaut de la premiere version : le verrou faisait un GET
+    complet, si bien qu'Eurostat consommait 120 Mo du budget avant meme qu'on
+    ait ouvert un seul fichier de ventes. Un verrou doit couter presque rien.
+    """
+    global _octets
+    requete = urllib.request.Request(url, headers=ENTETES, method="HEAD")
+    debut = time.time()
+    try:
+        with urllib.request.urlopen(requete, timeout=delai) as reponse:
+            entetes = dict(reponse.headers)
+            return {"statut": reponse.status, "entetes": entetes, "corps": b"",
+                    "erreur": None, "duree": time.time() - debut, "url": url,
+                    "poids": int(entetes.get("Content-Length") or 0) or None}
+    except urllib.error.HTTPError as erreur:
+        # Certains serveurs refusent HEAD : on retombe sur un GET, mais seulement
+        # pour ceux-la, et le cout reste rapporte.
+        if erreur.code in (405, 501):
+            reponse = lire_url(url, delai)
+            reponse["poids"] = len(reponse["corps"]) or None
+            return reponse
+        return {"statut": erreur.code, "entetes": dict(erreur.headers or {}),
+                "corps": b"", "erreur": "HTTP %s" % erreur.code,
+                "duree": time.time() - debut, "url": url, "poids": None}
+    except Exception as erreur:
+        return {"statut": None, "entetes": {}, "corps": b"",
+                "erreur": "%s: %s" % (type(erreur).__name__, erreur),
+                "duree": time.time() - debut, "url": url, "poids": None}
+
+
 def barriere(reponse):
     """La source demande-t-elle un paiement, une clef ou un compte ?"""
     if reponse["statut"] in CODES_BARRIERE:
@@ -165,33 +197,41 @@ def taille(octets):
 # environnement -- qui atteint bien GitHub --, tous deux repondaient 404. Ils ont
 # ete retires plutot que remplaces par d'autres suppositions.
 
+# Les pages a explorer. L'ordre compte : la premiere sonde a brule tout son
+# budget sur la geometrie et n'a jamais ouvert un fichier de ventes. Les
+# statistiques passent donc devant.
 PAGES = [
+    ("Statbel — ventes par secteur statistique (fiche)",
+     "https://statbel.fgov.be/en/open-data/real-estate-sales-according-nature-property-deed-sale-statistical-sectors-nis7-and-nis9"),
     ("Statbel — catalogue open data",
      "https://statbel.fgov.be/fr/open-data"),
     ("Statbel — catalogue open data (nl)",
      "https://statbel.fgov.be/nl/open-data"),
     ("SPF Finances — portail de telechargement du patrimoine",
      "https://finances.belgium.be/fr/experts-partenaires/donnees-ouvertes-patrimoine/jeux-donnees/portail-telechargement"),
-    ("geo.be — fiche « transactions immobilieres »",
-     "https://www.geo.be/catalog/details/89209670-51ca-11eb-beeb-3448ed25ad7c?l=fr"),
-    ("Statbel — secteurs statistiques",
-     "https://statbel.fgov.be/fr/open-data/secteurs-statistiques-0"),
 ]
 
-DIRECTS = [
-    ("Eurostat GISCO — communes (LAU) d'Europe, dont la Belgique",
-     "https://gisco-services.ec.europa.eu/distribution/v2/lau/geojson/LAU_RG_01M_2021_4326.geojson"),
-    ("data.gov.be — API de recherche",
-     "https://data.gov.be/api/3/action/package_search?q=immobilier&rows=8"),
+# Explores en second temps seulement, et un seul format : la premiere sonde a
+# telecharge le MEME jeu de secteurs en sqlite, shp et geojson, dans deux
+# projections -- quatre fois le meme contenu pour rien.
+PAGES_GEOMETRIE = [
+    ("Statbel — catalogue open data (geometrie)",
+     "https://statbel.fgov.be/fr/open-data"),
 ]
+
+DIRECTS = []
 
 # Ce qui, dans un lien, ressemble a un jeu de donnees utile.
 LIEN_UTILE = re.compile(r"\.(zip|csv|xlsx|geojson|json|txt)(\?|$)", re.I)
-LIEN_SUJET = re.compile(r"immo|vastgoed|onroerend|sector|secteur|munty|commune|gemeente|"
-                        r"transacti|verkoop|vente", re.I)
+# Ce qui parle de VENTES, et ce qui parle de GEOMETRIE. Les melanger, c'est
+# retelecharger 150 Mo de contours avant d'avoir ouvert un seul prix.
+LIEN_VENTES = re.compile(r"immo|onroerend|vastgoed|verkoop|vente|transacti", re.I)
+LIEN_GEOMETRIE = re.compile(r"sector|secteur|munty|commune|gemeente", re.I)
+# Un seul format par jeu : le geojson se lit sans outil, sqlite et shp non.
+FORMAT_INUTILE = re.compile(r"\.(sqlite|shp|dbf|prj)\.zip$|\.sqlite$|\.shp$", re.I)
 
 
-def extraire_liens(base, corps):
+def extraire_liens(base, corps, sujet):
     """Tous les liens de telechargement plausibles d'une page.
 
     On lit le HTML avec une expression reguliere plutot qu'un analyseur : on ne
@@ -208,7 +248,9 @@ def extraire_liens(base, corps):
             lien = (racine.group(0) if racine else "") + lien
         if not lien.startswith("http"):
             continue
-        if LIEN_SUJET.search(lien):
+        if FORMAT_INUTILE.search(lien):
+            continue
+        if sujet.search(lien):
             trouves.append(lien)
     # On garde l'ordre d'apparition, sans doublon.
     vus, sortie = set(), []
@@ -239,25 +281,25 @@ COLONNES_AGREGEES = re.compile(
 def verrou_gratuite(sources):
     """Chaque source repond-elle SANS compte, clef ni paiement ?
 
-    Le premier geste de la sonde, et une raison suffisante de tout arreter.
+    Par HEAD : on veut savoir si la porte s'ouvre, pas rapporter le meuble.
     """
     journal("=" * 74)
     journal("VERROU — les sources sont-elles accessibles sans compte ni paiement ?")
     journal("=" * 74)
     ouvertes = []
     for nom, url in sources:
-        reponse = lire_url(url, delai=45)
+        reponse = sonder_entetes(url)
         obstacle = barriere(reponse)
         if obstacle:
-            journal("  FERME   %-52s %s" % (nom[:52], obstacle))
+            journal("  FERME   %-46s %s" % (nom[:46], obstacle))
         elif reponse["statut"] == 200:
-            journal("  ouverte %-52s %s en %.1f s"
-                    % (nom[:52], taille(len(reponse["corps"])), reponse["duree"]))
+            journal("  ouverte %-46s %s" % (nom[:46], taille(reponse.get("poids"))))
             ouvertes.append((nom, url, reponse))
         else:
-            journal("  muette  %-52s %s" % (nom[:52], reponse["erreur"] or "sans reponse"))
+            journal("  muette  %-46s %s" % (nom[:46], reponse["erreur"] or "sans reponse"))
     journal()
-    journal("  %d source(s) ouverte(s) sur %d" % (len(ouvertes), len(sources)))
+    journal("  %d source(s) ouverte(s) sur %d  —  aucun octet de donnee telecharge"
+            % (len(ouvertes), len(sources)))
     return ouvertes
 
 
@@ -364,14 +406,16 @@ def codes_de_commune(colonnes, lignes):
 def lire_geojson(corps):
     """Extrait un GeoJSON, eventuellement dans un ZIP."""
     if corps[:2] == b"PK":
+        # On prend le PLUS GROS membre geojson, pas le premier : les archives
+        # Statbel contiennent aussi de petits .json de metadonnees, et la
+        # premiere version tombait dessus puis declarait le tout illisible.
         try:
             archive = zipfile.ZipFile(io.BytesIO(corps))
-            for info in archive.infolist():
-                if info.filename.lower().endswith((".geojson", ".json")):
-                    corps = archive.read(info)
-                    break
-            else:
+            membres = [i for i in archive.infolist()
+                       if i.filename.lower().endswith((".geojson", ".json"))]
+            if not membres:
                 return None
+            corps = archive.read(max(membres, key=lambda i: i.file_size))
         except Exception:
             return None
     try:
@@ -411,6 +455,14 @@ def mesurer_contours(nom, geo):
 
     # Poids apres la meme simplification que le robot francais : c'est ce qui
     # finirait reellement dans le navigateur.
+    # ATTENTION : le seuil du robot francais (EPSILON_DP) est calibre en DEGRES.
+    # Applique a des metres, il ne retire presque rien -- la premiere sonde a
+    # annonce « 14 % retires » et ce chiffre ne voulait rien dire. On ne mesure
+    # donc la simplification que si les coordonnees sont deja en degres.
+    if point and not (abs(point[0]) <= 180 and abs(point[1]) <= 90):
+        journal("      simplification: non mesuree — coordonnees projetees, le seuil du")
+        journal("                      robot est en degres. Reprojeter d'abord.")
+        return {c.replace("BE_", "") for c in _codes_de(entites)}
     sommets_avant = sommets_apres = 0
     for entite in entites:
         geometrie = entite.get("geometry") or {}
@@ -437,22 +489,27 @@ def mesurer_contours(nom, geo):
         journal("      poids estime  : ~%s une fois simplifie"
                 % taille(int(brut * sommets_apres / sommets_avant)))
 
-    # Les codes, pour le raccord.
+    codes = _codes_de(entites)
+    if codes:
+        journal("      codes commune: %d distincts, ex. %s"
+                % (len(codes), sorted(codes)[:4]))
+    else:
+        journal("      AUCUNE propriete ne ressemble a un code de commune belge")
+    return {c.replace("BE_", "") for c in codes}
+
+
+def _codes_de(entites):
+    """Les codes de commune portes par les entites, quelle qu'en soit la clef."""
+    proprietes = (entites[0].get("properties") or {}) if entites else {}
     codes = set()
-    cle_retenue = None
     for cle in proprietes:
         if re.search(r"nis|refnis|cd_munty|lau|insee|code", cle, re.I):
             valeurs = {str((e.get("properties") or {}).get(cle) or "").strip()
                        for e in entites}
             valeurs = {v for v in valeurs if re.fullmatch(r"(BE_)?\d{4,5}", v)}
             if len(valeurs) > len(codes):
-                codes, cle_retenue = valeurs, cle
-    if cle_retenue:
-        journal("      codes (%s) : %d distincts, ex. %s"
-                % (cle_retenue, len(codes), sorted(codes)[:4]))
-    else:
-        journal("      AUCUNE propriete ne ressemble a un code de commune belge")
-    return {c.replace("BE_", "") for c in codes}
+                codes = valeurs
+    return codes
 
 
 def raccorder(codes_contours, codes_stats):
@@ -577,108 +634,110 @@ def classer(nom, corps):
     return "tableau"
 
 
+def explorer(pages, sujet, deja_vues):
+    """Ouvre des pages et en extrait les liens de telechargement du sujet voulu."""
+    trouves = []
+    for nom, url in pages:
+        if url in deja_vues:
+            continue
+        deja_vues.add(url)
+        reponse = lire_url(url, delai=45)
+        if reponse["statut"] != 200:
+            journal("  %-52s %s" % (nom[:52], reponse["erreur"] or "sans reponse"))
+            continue
+        liens = extraire_liens(url, reponse["corps"], sujet)
+        journal()
+        journal("  %s" % nom)
+        if not liens:
+            journal("      aucun lien de telechargement repere")
+            continue
+        for lien in liens[:5]:
+            journal("      %s" % lien[-96:])
+        if len(liens) > 5:
+            journal("      … et %d autres" % (len(liens) - 5))
+        trouves.extend(liens)
+    return trouves
+
+
 def main():
     analyseur = argparse.ArgumentParser(description=__doc__)
     analyseur.add_argument("--verrou-seulement", action="store_true",
                            help="n'executer que le controle de gratuite")
     analyseur.add_argument("--sans-contours", action="store_true",
-                           help="sauter les contours (plus rapide)")
-    analyseur.add_argument("--max-fichiers", type=int, default=8,
-                           help="nombre maximal de fichiers decouverts a ouvrir")
+                           help="sauter la geometrie (la question des ventes suffit)")
+    analyseur.add_argument("--max-fichiers", type=int, default=6,
+                           help="nombre maximal de fichiers de ventes a ouvrir")
     options = analyseur.parse_args()
 
     journal("SONDE BELGIQUE — mesure de faisabilite d'une carte des prix")
     journal("Ce script ne modifie AUCUN fichier du depot.")
     journal()
 
-    ouvertes = verrou_gratuite(PAGES + DIRECTS)
+    verrou_gratuite(PAGES + PAGES_GEOMETRIE + DIRECTS)
     if options.verrou_seulement:
         return 0
-    if not ouvertes:
-        journal()
-        journal("Aucune source ouverte : rien de plus a mesurer.")
-        journal("Ce n'est PAS une conclusion sur la Belgique, seulement sur ces URL.")
-        return 0
 
-    # --- decouverte : quels fichiers ces pages proposent-elles vraiment ? ---
+    # --- 1. LES VENTES, d'abord : c'est la question centrale --------------
     journal()
     journal("=" * 74)
-    journal("DECOUVERTE — quels fichiers ces pages proposent-elles ?")
+    journal("DECOUVERTE — les fichiers de VENTES")
     journal("=" * 74)
-    candidats = []
-    for nom, url, reponse in ouvertes:
-        if any(nom == d[0] for d in DIRECTS):
-            candidats.append((nom, url, reponse["corps"]))
-            continue
-        liens = extraire_liens(url, reponse["corps"])
-        journal()
-        journal("  %s" % nom)
-        if not liens:
-            journal("      aucun lien de telechargement reperé sur cette page")
-            continue
-        for lien in liens[:6]:
-            journal("      %s" % lien)
-        if len(liens) > 6:
-            journal("      … et %d autres" % (len(liens) - 6))
-        for lien in liens[:options.max_fichiers]:
-            candidats.append(("(depuis %s)" % nom[:32], lien, None))
+    vues = set()
+    liens_ventes = explorer(PAGES, LIEN_VENTES, vues)
 
-    # --- ouverture des fichiers ------------------------------------------
     journal()
     journal("=" * 74)
-    journal("CONTENU — que contiennent vraiment ces fichiers ?")
+    journal("CONTENU — que contiennent les fichiers de ventes ?")
     journal("=" * 74)
-
     codes_stats, meilleur = set(), None
-    codes_contours = set()
     ouverts = 0
-    for nom, url, corps in candidats:
-        arret = budget_epuise()
-        if arret:
+    for lien in liens_ventes:
+        if ouverts >= options.max_fichiers or budget_epuise():
             journal()
-            journal("  %s — on s'arrete la." % arret)
+            journal("  arret : %s" % (budget_epuise() or "plafond de fichiers atteint"))
             break
-        if ouverts >= options.max_fichiers:
-            journal()
-            journal("  plafond de %d fichiers atteint." % options.max_fichiers)
-            break
-        if corps is None:
-            reponse = lire_url(url)
+        reponse = lire_url(lien)
+        if reponse["statut"] != 200 or not reponse["corps"]:
+            continue
+        ouverts += 1
+        corps = reponse["corps"]
+        journal()
+        journal("  %s" % lien[-96:])
+        journal("      %s  —  %s" % (classer(lien, corps), taille(len(corps))))
+        tableaux = lire_tableau(corps, lien)
+        if not tableaux:
+            journal("      pas un tableau lisible")
+            continue
+        for tableau in tableaux[:2]:
+            colonnes, lignes = decrire_tableau(tableau)
+            cle, codes = codes_de_commune(colonnes, lignes)
+            if codes:
+                journal("      codes commune (%s) : %d distincts" % (cle, len(codes)))
+                if len(codes) > len(codes_stats):
+                    codes_stats, meilleur = codes, (colonnes, lignes)
+
+    # --- 2. LA GEOMETRIE, ensuite, et UN SEUL fichier ---------------------
+    codes_contours = set()
+    if not options.sans_contours and not budget_epuise():
+        journal()
+        journal("=" * 74)
+        journal("DECOUVERTE — la geometrie des communes")
+        journal("=" * 74)
+        liens_geo = explorer(PAGES_GEOMETRIE, LIEN_GEOMETRIE, vues)
+        # Un seul, en degres si possible : 4326 plutot que le Lambert 31370.
+        liens_geo.sort(key=lambda u: (0 if "4326" in u or "3812" in u else 1, len(u)))
+        for lien in liens_geo[:1]:
+            reponse = lire_url(lien)
             if reponse["statut"] != 200 or not reponse["corps"]:
                 continue
-            corps = reponse["corps"]
-        ouverts += 1
-        genre = classer(nom, corps)
-        journal()
-        journal("  %s" % url[:96])
-        journal("      %s  —  %s" % (genre, taille(len(corps))))
-
-        if genre == "geometrie":
-            if options.sans_contours:
-                journal("      (contours sautes)")
-                continue
-            geo = lire_geojson(corps)
+            journal()
+            journal("  %s" % lien[-96:])
+            journal("      %s" % taille(len(reponse["corps"])))
+            geo = lire_geojson(reponse["corps"])
             if not geo:
                 journal("      illisible comme GeoJSON")
                 continue
-            codes = mesurer_contours(nom, geo)
-            if len(codes) > len(codes_contours):
-                codes_contours = codes
-        elif genre == "tableau":
-            tableaux = lire_tableau(corps, nom)
-            if not tableaux:
-                journal("      pas un tableau lisible")
-                continue
-            for tableau in tableaux[:2]:
-                colonnes, lignes = decrire_tableau(tableau)
-                cle, codes = codes_de_commune(colonnes, lignes)
-                if codes:
-                    journal("      codes commune (%s) : %d distincts" % (cle, len(codes)))
-                    if len(codes) > len(codes_stats):
-                        codes_stats, meilleur = codes, (colonnes, lignes)
-        else:
-            apercu = corps[:200].decode("utf-8", "replace").replace("\n", " ")
-            journal("      debut : %s…" % apercu[:110])
+            codes_contours = mesurer_contours(lien, geo)
 
     raccorder(codes_contours, codes_stats)
     if meilleur:
