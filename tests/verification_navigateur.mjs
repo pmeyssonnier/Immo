@@ -435,8 +435,45 @@ await page.waitForTimeout(300);
 await page.click("#liste-communes li[data-code=\"30189\"]");
 await page.waitForTimeout(1500);
 
+// --- 4 quater. le fond de carte indisponible ------------------------------
+//
+// Ce controle se contentait d'exiger que l'avertissement soit VISIBLE. Il
+// passait sur un poste de developpement dont le proxy bloque
+// tile.openstreetmap.org -- et il a echoue au tout premier passage sur le
+// serveur d'integration, qui lui a un acces internet : les tuiles arrivent,
+// aucune erreur n'est levee, aucun avertissement ne s'affiche.
+//
+// Il ne testait donc pas le code : il testait le reseau de la machine. On
+// PROVOQUE desormais la panne et on verifie la reaction, ce qui donne le meme
+// resultat partout.
+//
+// L'etat de depart n'est volontairement pas asserte : selon l'environnement,
+// l'avertissement peut deja etre affiche ou non, et l'exiger dans un sens ferait
+// echouer le test dans l'autre.
+await page.route("**/tile.openstreetmap.org/**", (route) => route.abort("failed"));
+// Changer de zoom force le chargement de tuiles NEUVES : celles deja en cache
+// ne declencheraient aucune erreur.
+//
+// On DEZOOME, et pas l'inverse : a cet endroit du parcours la carte est au zoom
+// maximum (une vente a ete ouverte plus haut), si bien que le bouton zoom-avant
+// porte la classe leaflet-disabled et qu'un clic dessus n'aboutit jamais.
+await page.click(".leaflet-control-zoom-out");
+await page.waitForTimeout(1200);
+await page.click(".leaflet-control-zoom-out");
+await page.waitForTimeout(2500);
 verifier(await page.locator("#avertissement-fond").isVisible(),
-  "avertissement « fond de carte indisponible » affiché ET conservé");
+  "tuiles injoignables : l'avertissement « fond de carte indisponible » s'affiche");
+
+await page.unroute("**/tile.openstreetmap.org/**");
+await page.click(".leaflet-control-zoom-in");
+await page.waitForTimeout(800);
+await page.click(".leaflet-control-zoom-in");
+await page.waitForTimeout(2000);
+// L'avertissement est PERSISTANT par conception (carte.js : « Message
+// PERSISTANT, dans son propre element »). S'il disparaissait au premier retour
+// des tuiles, l'utilisateur ne saurait jamais que sa carte est partielle.
+verifier(await page.locator("#avertissement-fond").isVisible(),
+  "l'avertissement est CONSERVÉ, il ne clignote pas au retour des tuiles");
 await page.screenshot({ path: SP + "/apercu-1-carte.png" });
 
 // --- 5. estimation --------------------------------------------------------
