@@ -94,11 +94,36 @@ def budget_epuise():
     return None
 
 
-def lire_url(url, delai=DELAI):
+# Combien de fois on rejoue une panne RESEAU. Pas une erreur HTTP : un 404 est
+# une reponse, on ne la rejoue pas.
+#
+# Mesure a l'appui : un run a rendu « Network is unreachable » sur les six
+# sources et 0 octet telecharge, alors que le run precedent, trois minutes plus
+# tot, en avait tire 72 Mo depuis les memes URL. La panne etait celle du serveur
+# d'execution, pas celle des sources ; sans reprise, elle se lit comme un
+# resultat de mesure et induit en erreur.
+TENTATIVES = 3
+
+
+def lire_url(url, delai=DELAI, tentatives=TENTATIVES):
     """Va chercher une URL et rapporte ce qui s'est passe, sans jamais planter.
 
-    Un echec n'est pas une exception ici : c'est un RESULTAT de mesure.
+    Un echec n'est pas une exception ici : c'est un RESULTAT de mesure. Les
+    pannes reseau, elles, sont rejouees -- elles ne disent rien de la source.
     """
+    for essai in range(tentatives):
+        resultat = _lire_une_fois(url, delai)
+        if resultat["statut"] is not None:
+            return resultat
+        if essai < tentatives - 1:
+            attente = 2 ** essai
+            journal("      (panne reseau : %s — nouvelle tentative dans %d s)"
+                    % (resultat["erreur"], attente))
+            time.sleep(attente)
+    return resultat
+
+
+def _lire_une_fois(url, delai=DELAI):
     global _octets
     requete = urllib.request.Request(url, headers=ENTETES)
     debut = time.time()
