@@ -201,6 +201,8 @@ def taille(octets):
 # budget sur la geometrie et n'a jamais ouvert un fichier de ventes. Les
 # statistiques passent donc devant.
 PAGES = [
+    ("Statbel — ventes par COMMUNE (fiche)",
+     "https://statbel.fgov.be/fr/open-data/ventes-de-biens-immobiliers-selon-la-nature-du-bien-dans-lacte-de-vente"),
     ("Statbel — ventes par secteur statistique (fiche)",
      "https://statbel.fgov.be/en/open-data/real-estate-sales-according-nature-property-deed-sale-statistical-sectors-nis7-and-nis9"),
     ("Statbel — catalogue open data",
@@ -571,50 +573,81 @@ def raccorder(codes_contours, codes_stats):
 # --------------------------------------------------------------------------
 
 def couverture(colonnes, lignes):
-    """Combien de communes seraient coloriees, combien resteraient grises ?"""
+    """Que montrerait la carte : combien d'entites coloriees, combien de grises ?
+
+    CORRECTION D'UN FAUX RAPPORT. La premiere version comptait des SECTEURS
+    STATISTIQUES en les appelant des communes, et annoncait « 659 % des 581
+    communes belges » -- un pourcentage impossible qui aurait du m'alerter
+    immediatement. On distingue desormais les deux, et on nomme ce qu'on compte.
+    """
     journal()
     journal("=" * 74)
-    journal("LA CARTE — combien de communes seraient reellement coloriees ?")
+    journal("LA CARTE — combien d'entites seraient reellement coloriees ?")
     journal("=" * 74)
-    icode = imed = inb = None
+    icode = imed = inb = iannee = None
+    par_secteur = False
     for i, nom in enumerate(colonnes):
-        if icode is None and re.search(r"stat_?sector|cd_sector|refnis|cd_munty|nis[_ ]?code",
-                                       nom, re.I):
+        if icode is None and re.search(r"stat_?sector|cd_sector", nom, re.I):
+            icode, par_secteur = i, True
+        if icode is None and re.search(r"refnis|cd_munty|nis[_ ]?code", nom, re.I):
             icode = i
         if imed is None and re.search(r"median|mediaan|mediane|p50", nom, re.I):
             imed = i
-        if inb is None and re.search(r"aantal|nombre|number|count|ms_total", nom, re.I):
+        if inb is None and re.search(r"transaction|aantal|nombre|number|count", nom, re.I):
             inb = i
+        if iannee is None and re.search(r"year|jaar|annee", nom, re.I):
+            iannee = i
     if icode is None or imed is None:
-        journal("  colonnes de code ou de mediane introuvables : mesure impossible.")
-        journal("  (code=%s, mediane=%s)" % (icode, imed))
+        journal("  colonnes de code ou de mediane introuvables (code=%s, mediane=%s)."
+                % (icode, imed))
         return
-    journal("  colonne code=%s, mediane=%s, volume=%s"
-            % (colonnes[icode], colonnes[imed], colonnes[inb] if inb is not None else "—"))
+    quoi = "secteurs statistiques" if par_secteur else "communes"
+    journal("  granularite : %s  (colonnes %s / %s)"
+            % (quoi, colonnes[icode], colonnes[imed]))
 
-    avec, sans, prix = set(), set(), []
+    # Une seule annee : melanger douze millesimes gonfle artificiellement le
+    # nombre d'entites, les codes ayant change au fil des fusions de communes.
+    annees = sorted({l[iannee] for l in lignes if iannee is not None
+                     and iannee < len(l) and l[iannee].strip()}) if iannee is not None else []
+    derniere = annees[-1] if annees else None
+    if derniere:
+        journal("  annee retenue : %s (sur %d disponibles)" % (derniere, len(annees)))
+
+    avec, tous, prix, transactions = set(), set(), [], 0
     for ligne in lignes:
         if icode >= len(ligne):
             continue
+        if derniere and iannee < len(ligne) and ligne[iannee] != derniere:
+            continue
         code = ligne[icode].strip()
+        if not code:
+            continue
+        tous.add(code)
         brut = ligne[imed].strip() if imed < len(ligne) else ""
-        valeur = None
-        if brut:
-            try:
-                valeur = float(brut.replace(",", ".").replace(" ", ""))
-            except ValueError:
-                valeur = None
-        if valeur and valeur > 0:
+        try:
+            valeur = float(brut.replace(",", ".").replace(" ", "")) if brut else 0
+        except ValueError:
+            valeur = 0
+        if valeur > 0:
             avec.add(code)
             prix.append(valeur)
-        else:
-            sans.add(code)
-    sans -= avec
-    journal("  communes avec un prix median : %d" % len(avec))
-    journal("  communes sans (sous le seuil): %d" % len(sans))
-    if avec:
-        journal("  soit %.1f %% des %d communes belges"
-                % (100 * len(avec) / COMMUNES_BELGES, COMMUNES_BELGES))
+            if inb is not None and inb < len(ligne):
+                try:
+                    transactions += int(float(ligne[inb] or 0))
+                except ValueError:
+                    pass
+    journal("  %s presents dans le fichier : %d" % (quoi, len(tous)))
+    journal("  %s avec un prix median      : %d  (%.1f %%)"
+            % (quoi, len(avec), 100 * len(avec) / max(1, len(tous))))
+    journal("  %s sans (sous le seuil)     : %d" % (quoi, len(tous) - len(avec)))
+    if par_secteur:
+        communes = {c[:5] for c in avec}
+        journal("  -> communes touchees par au moins un secteur chiffre : %d sur %d (%.1f %%)"
+                % (len(communes), COMMUNES_BELGES,
+                   100 * len(communes) / COMMUNES_BELGES))
+    if transactions:
+        journal("  transactions couvertes     : %s"
+                % format(transactions, ",d").replace(",", " "))
     if prix:
         prix.sort()
         def q(p):
@@ -622,7 +655,6 @@ def couverture(colonnes, lignes):
         journal("  prix medians : min %s | Q1 %s | median %s | Q3 %s | max %s"
                 % tuple(format(int(x), ",d").replace(",", " ") + " EUR"
                         for x in (prix[0], q(0.25), q(0.5), q(0.75), prix[-1])))
-        # L'echelle a 9 classes du site francais tiendrait-elle ?
         seuils = [q(k / 9) for k in range(1, 9)]
         journal("  9 classes donneraient : %s"
                 % ", ".join(format(int(s), ",d").replace(",", " ") for s in seuils))
